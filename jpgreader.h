@@ -82,8 +82,8 @@ struct TJPGRPblc {
 	uintxx flags;
 	
 	/* image size */
-	uint16 sizex;
-	uint16 sizey;
+	uint32 sizex;
+	uint32 sizey;
 	
 	/* properties */
 	uintxx cmode;

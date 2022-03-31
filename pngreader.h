@@ -72,23 +72,25 @@ typedef enum {
 
 /* Public struct */
 struct TPNGRPblc {
-	/* image size */
-	uint32 sizex;
-	uint32 sizey;
-	
-	/* properties */
-	uint8 colordepth;
-	uint8 colortype;
-	uint8 compression;
-	uint8 filter;
-	uint8 interlace;
-
 	/* state */
 	uintxx state;
 	uintxx error;
 	uintxx warnings;       /* non fatal errors */
 	uintxx flags;
-	uintxx properties;
+
+	/* image size */
+	uint32 sizex;
+	uint32 sizey;
+	
+	/* properties */
+	uintxx properties;     /* chunks map */
+
+	/* PNG file header properties  */
+	uint8 colordepth;
+	uint8 colortype;
+	uint8 compression;
+	uint8 filter;
+	uint8 interlace;
 
 	/* RGBA color palette */
 	uintxx palettesize;
