@@ -265,7 +265,7 @@ readinput(struct TPNGRPblc* pngr, uint8* buffer, uintxx size)
 
 	r = PRVT->inputfn(buffer, size, PRVT->payload);
 	if (UNLIKELY(r ^ size)) {
-		const static uintxx error[] = {
+		static const uintxx error[] = {
 			PNGR_EBADDATA,
 			PNGR_EIOERROR
 		};
@@ -338,12 +338,17 @@ getchunkhead(struct TPNGRPblc* pngr)
 CTB_INLINE void
 initcrc32(struct TPNGRPblc* pngr, uint32 crc)
 {
-#if DOCRC
 	PRVT->crc32 = crc;
 	if ((pngr->flags & PNGR_NOCRCCHECK) == 0)
 		PRVT->docrc = 1;
-#endif
 }
+
+#if DOCRC
+	#define INITCRC32(R, CRC) initcrc32((R), (CRC))
+#else
+	#define INITCRC32(R, CRC)
+#endif
+
 
 CTB_INLINE void
 checkcrc32(struct TPNGRPblc* pngr)
@@ -409,6 +414,7 @@ isvalidmode(uintxx colordepth, uintxx colortype)
 				colordepth == 2 || colordepth == 4) {
 				return 1;
 			}
+			/* fallthrough */
 		case 2:
 		case 4:
 		case 6:
@@ -431,7 +437,7 @@ parseIHDR(struct TPNGRPblc* pngr, struct TChunkHead head)
 {
 	uint8 *s;
 	
-	initcrc32(pngr, CRC32_IHDR);
+	INITCRC32(pngr, CRC32_IHDR);
 	s = PRVT->source;
 	if (head.length ^ 13 || readinput(pngr, s, 13) == 0) {
 		return 0;
@@ -516,7 +522,7 @@ readzlibheader(struct TPNGRPblc* pngr)
 				return 0;
 			}
 			
-			initcrc32(pngr, CRC32_IDAT);
+			INITCRC32(pngr, CRC32_IDAT);
 			PRVT->remaining = head.length;
 		}
 	}
@@ -562,7 +568,7 @@ parsechunks(struct TPNGRPblc* pngr)
 						return 0;
 					}
 					
-					initcrc32(pngr, CRC32_IEND);
+					INITCRC32(pngr, CRC32_IEND);
 					checkcrc32(pngr);
 					if (pngr->error) {
 						return 0;
@@ -597,7 +603,7 @@ parsechunks(struct TPNGRPblc* pngr)
 					}
 				}
 				
-				initcrc32(pngr, CRC32_IDAT);
+				INITCRC32(pngr, CRC32_IDAT);
 				PRVT->remaining = head.length;
 				if (readzlibheader(pngr)) {
 					return 1;
@@ -1034,7 +1040,7 @@ parsePLTE(struct TPNGRPblc* pngr, struct TChunkHead head)
 		return 0;
 	}
 	
-	initcrc32(pngr, CRC32_PLTE);
+	INITCRC32(pngr, CRC32_PLTE);
 	
 	s = pngr->palette;
 	pngr->palettesize = psize;
@@ -1092,7 +1098,7 @@ parseTRNS(struct TPNGRPblc* pngr, struct TChunkHead head)
 		return 0;
 	}
 	
-	initcrc32(pngr, CRC32_TRNS);
+	INITCRC32(pngr, CRC32_TRNS);
 	s = PRVT->source;
 	if (pngr->colortype == 3) {
 		intxx i;
@@ -1179,7 +1185,7 @@ parseCHRM(struct TPNGRPblc* pngr, struct TChunkHead head)
 	}
 	PRVT->chunkmap.CHRM = 1;
 
-	initcrc32(pngr, CRC32_CHRM);
+	INITCRC32(pngr, CRC32_CHRM);
 	s = PRVT->source;
 	if (head.length != 32 || readinput(pngr, s, 32) == 0) {
 		return 0;
@@ -1242,7 +1248,7 @@ parseGAMA(struct TPNGRPblc* pngr, struct TChunkHead head)
 	}
 	PRVT->chunkmap.GAMA = 1;
 
-	initcrc32(pngr, CRC32_GAMA);
+	INITCRC32(pngr, CRC32_GAMA);
 	s = PRVT->source;
 	if (head.length != 4 || readinput(pngr, s, 4) == 0) {
 		return 0;
@@ -1303,7 +1309,7 @@ parseSBIT(struct TPNGRPblc* pngr, struct TChunkHead head)
 		case 6: size = 4; break;
 	}
 
-	initcrc32(pngr, CRC32_SBIT);
+	INITCRC32(pngr, CRC32_SBIT);
 	
 	/* each depth specified in sBIT shall be greater than zero and less than
 	 * or equal to the sample depth (which is 8 for indexed-colour images,
@@ -1359,7 +1365,7 @@ parseSRGB(struct TPNGRPblc* pngr, struct TChunkHead head)
 	}
 	PRVT->chunkmap.SRGB = 1;
 
-	initcrc32(pngr, CRC32_SRGB);
+	INITCRC32(pngr, CRC32_SRGB);
 	
 	/* only 4 posible values: perceptual, relative, saturation, absolute */
 	if (head.length != 1 || readinput(pngr, s, 1) == 0) {
@@ -1414,7 +1420,7 @@ parseBKGD(struct TPNGRPblc* pngr, struct TChunkHead head)
 		case 3: size = 1; break;
 	}
 
-	initcrc32(pngr, CRC32_BKGD);
+	INITCRC32(pngr, CRC32_BKGD);
 	s = PRVT->source;
 	if (head.length != size || readinput(pngr, s, size) == 0) {
 		return 0;
@@ -1463,7 +1469,7 @@ parsePHYS(struct TPNGRPblc* pngr, struct TChunkHead head)
 	}
 	PRVT->chunkmap.PHYS = 1;
 
-	initcrc32(pngr, CRC32_PHYS);
+	INITCRC32(pngr, CRC32_PHYS);
 	s = PRVT->source;
 	if (head.length != 9 || readinput(pngr, s, 9) == 0) {
 		return 0;
@@ -1667,8 +1673,8 @@ readiccprofile(struct TPNGRPblc* pngr, uintxx size)
 				/* truncated checksum */
 				if (remaining + left >= 4) {
 					switch (left) {
-						case 3: s[2] = s[r + 2];
-						case 2: s[1] = s[r + 1];
+						case 3: s[2] = s[r + 2];  /* fallthrough */
+						case 2: s[1] = s[r + 1];  /* fallthrough */
 						case 1: s[0] = s[r + 0];
 					}
 					
@@ -1750,7 +1756,7 @@ parseICCP(struct TPNGRPblc* pngr, struct TChunkHead head)
 		return 0;
 	}
 
-	initcrc32(pngr, CRC32_ICCP);
+	INITCRC32(pngr, CRC32_ICCP);
 	if (pngr->flags & PNGR_IGNOREICCP) {
 		if (head.length) {
 			if (consumechunk(pngr, head.length) == 0) {
@@ -1813,7 +1819,7 @@ inflateidat(struct TPNGRPblc* pngr)
 					return 0;
 				}
 				
-				initcrc32(pngr, CRC32_IDAT);
+				INITCRC32(pngr, CRC32_IDAT);
 				PRVT->remaining = head.length;
 				continue;
 			}
@@ -1876,7 +1882,7 @@ consumetail(struct TPNGRPblc* pngr, intxx remaining)
 			return 0;
 		}
 		
-		initcrc32(pngr, CRC32_IDAT);
+		INITCRC32(pngr, CRC32_IDAT);
 		remaining -= head.length;
 		if (remaining < 0) {
 			SETERROR(PNGR_EBADDATA);
@@ -2302,13 +2308,13 @@ pngr_decodeimg(TPNGReader* pngr)
 	if (pngr->interlace) {
 		PRVT->interpolate = 0;
 		switch (PRVT->pass) {
-			case 0: pngr_decodepass(pngr);
-			case 1: pngr_decodepass(pngr);
-			case 2: pngr_decodepass(pngr);
-			case 3: pngr_decodepass(pngr);
-			case 4: pngr_decodepass(pngr);
-			case 5: pngr_decodepass(pngr);
-			case 6: pngr_decodepass(pngr);
+			case 0: pngr_decodepass(pngr);  /* fallthrough */
+			case 1: pngr_decodepass(pngr);  /* fallthrough */
+			case 2: pngr_decodepass(pngr);  /* fallthrough */
+			case 3: pngr_decodepass(pngr);  /* fallthrough */
+			case 4: pngr_decodepass(pngr);  /* fallthrough */
+			case 5: pngr_decodepass(pngr);  /* fallthrough */
+			case 6: pngr_decodepass(pngr);  /* fallthrough */
 			default:
 				break;
 		}
@@ -2475,10 +2481,14 @@ getsample(struct TPNGRPblc* pngr, uint8* source, uint8* pixel)
 
 		target = (void*) pixel;
 		switch (PRVT->pelsize) {
-			case 8: target[3] = (source[7] << 0x08) | source[6];
-			case 6: target[2] = (source[5] << 0x08) | source[4];
-			case 4: target[1] = (source[3] << 0x08) | source[2];
-			case 2: target[0] = (source[1] << 0x08) | source[0];
+			case 8:
+				target[3] = (source[7] << 0x08) | source[6];  /* fallthrough */
+			case 6:
+				target[2] = (source[5] << 0x08) | source[4];  /* fallthrough */
+			case 4:
+				target[1] = (source[3] << 0x08) | source[2];  /* fallthrough */
+			case 2:
+				target[0] = (source[1] << 0x08) | source[0];
 		}
 		return pixel;
 	}
@@ -2504,12 +2514,12 @@ fill(struct TPNGRPblc* pngr, uint8* offset, uint8* s, uintxx x2, uintxx y2)
 		for (x = 0; x < x2; x++) {
 			switch (PRVT->pelsize) {
 				case 8: position[7] = s[7];
-				/* 7 */ position[6] = s[6];
+				/* 7 */ position[6] = s[6];  /* fallthrough */
 				case 6: position[5] = s[5];
-				/* 5 */ position[4] = s[4];
-				case 4: position[3] = s[3];
-				case 3: position[2] = s[2];
-				case 2: position[1] = s[1];
+				/* 5 */ position[4] = s[4];  /* fallthrough */
+				case 4: position[3] = s[3];  /* fallthrough */
+				case 3: position[2] = s[2];  /* fallthrough */
+				case 2: position[1] = s[1];  /* fallthrough */
 				case 1: position[0] = s[0];
 			}
 			position += PRVT->pelsize;
@@ -2614,12 +2624,12 @@ pngr_decodepass(TPNGReader* pngr)
 					sample = getsample(PBLC, row, pixel);
 					switch (PRVT->pelsize) {
 						case 8: offsetx[7] = sample[7];
-						/* 7 */ offsetx[6] = sample[6];
+						/* 7 */ offsetx[6] = sample[6];  /* fallthrough */
 						case 6: offsetx[5] = sample[5];
-						/* 5 */ offsetx[4] = sample[4];
-						case 4: offsetx[3] = sample[3];
-						case 3: offsetx[2] = sample[2];
-						case 2: offsetx[1] = sample[1];
+						/* 5 */ offsetx[4] = sample[4];  /* fallthrough */
+						case 4: offsetx[3] = sample[3];  /* fallthrough */
+						case 3: offsetx[2] = sample[2];  /* fallthrough */
+						case 2: offsetx[1] = sample[1];  /* fallthrough */
 						case 1: offsetx[0] = sample[0];
 					}
 					row += PRVT->rawpelsize;

@@ -77,14 +77,14 @@ typedef enum {
 /* Public struct */
 struct TJPGRPblc {
 	uintxx state;
+	uintxx flags;
 	uintxx error;
 	uintxx warnings;       /* non fatal errors */
-	uintxx flags;
 	
 	/* image size */
 	uint32 sizex;
 	uint32 sizey;
-	
+
 	/* properties */
 	uintxx cmode;
 	uintxx isprogressive;
