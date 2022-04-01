@@ -1083,7 +1083,7 @@ ssse3_setrow3:
 	por			xmm6, xmm4
 	movdqu		[r9], xmm6
 	
-	; remaning pixels
+	; remaining pixels
 	movdqa		xmm0, [suffle1.2]
 	movdqa		xmm4, xmm1
 	pshufb		xmm4, xmm0
