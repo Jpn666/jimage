@@ -904,13 +904,13 @@ setvalues(struct TPNGRPblc* pngr, struct TImageInfo* info)
 	info->sizex = pngr->sizex;
 	info->sizey = pngr->sizey;
 	info->colortype = mode;
-		
+
 	info->depth = 8;
 	if (pngr->depth == 16) {
 		info->depth = 16;
 	}
-	
-	info->imgsize = PRVT->rowsize * pngr->sizey;
+	info->size = imginfo_getrowsize(info) * pngr->sizey;
+
 	return 1;
 }
 

@@ -1811,7 +1811,7 @@ jpgr_initdecoder(TJPGReader* jpgr, TImageInfo* info)
 		info->sizex = jpgr->sizex;
 		info->colortype = mode;
 		info->depth = 8;
-		info->imgsize = jpgr->sizex * jpgr->sizey * PRVT->ncomponents;
+		info->size  = imginfo_getrowsize(info) * jpgr->sizey;
 
 		SETSTATE(1);
 		return 1;

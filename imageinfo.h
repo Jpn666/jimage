@@ -46,7 +46,7 @@ struct TImageInfo {
 	uintxx depth;      /* bits per channel */
 	
 	/* size in bytes */
-	uintxx imgsize;
+	uintxx size;
 };
 
 typedef struct TImageInfo TImageInfo;
