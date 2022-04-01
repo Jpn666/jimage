@@ -178,7 +178,6 @@ struct TJPGRPrvt {
 
 	/* number of components in the image */
 	uint32 ncomponents;
-	uintxx requiredmem;
 	
 	/* to ensure segment order */
 	struct TJPGRSegmentMap {
@@ -358,21 +357,22 @@ jpgr_reset(TJPGReader* jpgr)
 	PBLC->state = 0;
 	PBLC->error = 0;
 	
+	PBLC->sizex = 0;
+	PBLC->sizey = 0;
+	
+	PBLC->colortype = 0;
+	PBLC->depth     = 0;
+	PBLC->requiredmemory = 0;
+	PBLC->isprogressive  = 0;
+
 	PBLC->mayorversion = 0;
 	PBLC->minorversion = 0;
 	PBLC->xdensity = 0;
 	PBLC->ydensity = 0;
 	PBLC->unit = 0;
-	
-	PBLC->sizex = 0;
-	PBLC->sizey = 0;
-	
+
 	PBLC->iccprofile = NULL;
 	PBLC->iccpsize   = 0;
-	
-	PBLC->colortype = 0;
-	PBLC->depth     = 0;
-	PBLC->isprogressive = 0;
 	
 	/* private fields */
 	PRVT->ncomponents   = 0;
@@ -403,7 +403,6 @@ jpgr_reset(TJPGReader* jpgr)
 	PRVT->eobrun = 0;
 	PRVT->npass  = 0;
 	PRVT->rinterval   = 0;
-	PRVT->requiredmem = 0;
 		
 	PRVT->inputfn = NULL;
 	PRVT->payload = NULL;
@@ -1621,7 +1620,7 @@ setrequiredmemory(struct TJPGRPblc* jpgr)
 	if (total > MAXSAFESIZE1) {
 		return 0;
 	}
-	PRVT->requiredmem = (uintxx) total;	
+	jpgr->requiredmemory = (uintxx) total;
 	return 1;
 }
 
@@ -1792,8 +1791,6 @@ jpgr_initdecoder(TJPGReader* jpgr, TImageInfo* info)
 			goto L_ERROR;
 		}
 		
-		info->rmemory = 0;
-
 		/* color mode */
 		mode = IMAGE_GRAY;
 		if (PRVT->ncomponents == 3) {
@@ -1814,9 +1811,8 @@ jpgr_initdecoder(TJPGReader* jpgr, TImageInfo* info)
 		info->sizex = jpgr->sizex;
 		info->colortype = mode;
 		info->depth = 8;
-
 		info->imgsize = jpgr->sizex * jpgr->sizey * PRVT->ncomponents;
-		info->rmemory = PRVT->requiredmem;
+
 		SETSTATE(1);
 		return 1;
 	}

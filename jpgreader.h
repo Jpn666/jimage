@@ -88,6 +88,9 @@ struct TJPGRPblc {
 	uintxx colortype;
 	uintxx depth;
 
+	/* internal memory required for the decoder */
+	uintxx requiredmemory;
+
 	/* properties */
 	uintxx isprogressive;
 	

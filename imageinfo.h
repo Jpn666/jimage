@@ -47,9 +47,6 @@ struct TImageInfo {
 	
 	/* size in bytes */
 	uintxx imgsize;
-	
-	/* internal memory required for the decoder */
-	uintxx rmemory;
 };
 
 typedef struct TImageInfo TImageInfo;

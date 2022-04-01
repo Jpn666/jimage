@@ -85,6 +85,9 @@ struct TPNGRPblc {
 	uintxx colortype;
 	uintxx depth;
 
+	/* internal memory required for the decoder */
+	uintxx requiredmemory;
+
 	/* PNG file header */
 	uint8 compression;
 	uint8 filter;

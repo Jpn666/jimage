@@ -158,21 +158,23 @@ pngr_reset(TPNGReader* pngr)
 	uintxx i;
 	ASSERT(pngr);
 
-	/* header */
-	PBLC->sizex = 0;
-	PBLC->sizey = 0;
-
-	PBLC->colortype   = 0;
-	PBLC->depth       = 0;
-	PBLC->compression = 0;
-	PBLC->filter      = 0;
-	PBLC->interlace   = 0;
-	
 	/* state */
 	PBLC->state = 0;
 	PBLC->error = 0;
 	PBLC->warnings   = 0;
 	PBLC->properties = 0;
+
+	/* header */
+	PBLC->sizex = 0;
+	PBLC->sizey = 0;
+
+	PBLC->colortype = 0;
+	PBLC->depth     = 0;
+	PBLC->requiredmemory = 0;
+
+	PBLC->compression = 0;
+	PBLC->filter      = 0;
+	PBLC->interlace   = 0;
 	
 	PBLC->palettesize = 0;
 	for (i = 0; i < sizeof(PBLC->palette); i++) {
@@ -924,8 +926,6 @@ pngr_initdecoder(TPNGReader* pngr, TImageInfo* info)
 		goto L_ERROR;
 	}
 	
-	info->rmemory = 0;
-	
 	/* at this point we need an input function */
 	if (PRVT->inputfn == NULL) {
 		SETERROR(PNGR_EIOERROR);
@@ -960,7 +960,8 @@ pngr_initdecoder(TPNGReader* pngr, TImageInfo* info)
 				
 				/* ready to start decoding */
 				SETSTATE(1);
-				info->rmemory = PRVT->rowmemory << 1;
+
+				PBLC->requiredmemory = PRVT->rowmemory << 1;
 				return 1;
 			}
 			
