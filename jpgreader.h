@@ -85,8 +85,10 @@ struct TJPGRPblc {
 	uint32 sizex;
 	uint32 sizey;
 
+	uintxx colortype;
+	uintxx depth;
+
 	/* properties */
-	uintxx cmode;
 	uintxx isprogressive;
 	
 	/* */

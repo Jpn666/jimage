@@ -33,19 +33,19 @@
 
 /* Error codes */
 typedef enum {
-	PNGR_OK              = 0,
-	PNGR_EBADSTATE       = 1,
-	PNGR_EINVALIDIMAGE   = 2,
-	PNGR_EBADCRC         = 3,
-	PNGR_EBADDATA        = 4,
-	PNGR_EDEFLATE        = 5,
-	PNGR_EOOM            = 6,
-	PNGR_EMISSINGCHUNK   = 7,
-	PNGR_EIOERROR        = 8,
-	PNGR_EBADUSE         = 9,
-	PNGR_ESIZELIMIT      = 10,
-	PNGR_ECHUNKORDER     = 11,
-	PNGR_EDUPLICATECHUNK = 12
+	PNGR_OK               = 0,
+	PNGR_EBADSTATE        = 1,
+	PNGR_EINVALIDIMAGE    = 2,
+	PNGR_EBADCRC          = 3,
+	PNGR_EBADDATA         = 4,
+	PNGR_EDEFLATE         = 5,
+	PNGR_EOOM             = 6,
+	PNGR_EMISSINGCHUNK    = 7,
+	PNGR_EIOERROR         = 8,
+	PNGR_EBADUSE          = 9,
+	PNGR_ESIZELIMIT       = 10,
+	PNGR_ECHUNKORDER      = 11,
+	PNGR_EDUPLICATEDCHUNK = 12
 } ePNGRError;
 
 
@@ -74,30 +74,30 @@ typedef enum {
 struct TPNGRPblc {
 	/* state */
 	uintxx state;
+	uintxx flags;
 	uintxx error;
 	uintxx warnings;       /* non fatal errors */
-	uintxx flags;
 
 	/* image size */
 	uint32 sizex;
 	uint32 sizey;
 	
-	/* properties */
-	uintxx properties;     /* chunks map */
+	uintxx colortype;
+	uintxx depth;
 
-	/* PNG file header properties  */
-	uint8 colordepth;
-	uint8 colortype;
+	/* PNG file header */
 	uint8 compression;
 	uint8 filter;
 	uint8 interlace;
+
+	/* PNG image chunk map properties */
+	uintxx properties;
 
 	/* RGBA color palette */
 	uintxx palettesize;
 	uint8  palette[1024];
 	
 	/* transparency color key */
-	uintxx hasalpha;
 	uint16 alpha[3];       /* alpha key RGB or grayscale */
 	
 	/* background color */

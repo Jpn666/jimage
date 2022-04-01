@@ -370,7 +370,8 @@ jpgr_reset(TJPGReader* jpgr)
 	PBLC->iccprofile = NULL;
 	PBLC->iccpsize   = 0;
 	
-	PBLC->cmode         = 0;
+	PBLC->colortype = 0;
+	PBLC->depth     = 0;
 	PBLC->isprogressive = 0;
 	
 	/* private fields */
@@ -1792,7 +1793,7 @@ jpgr_initdecoder(TJPGReader* jpgr, TImageInfo* info)
 		}
 		
 		info->rmemory = 0;
-				
+
 		/* color mode */
 		mode = IMAGE_GRAY;
 		if (PRVT->ncomponents == 3) {
@@ -1800,9 +1801,9 @@ jpgr_initdecoder(TJPGReader* jpgr, TImageInfo* info)
 			if (PRVT->isrgb)
 				mode = IMAGE_RGB;
 		}
-		PBLC->cmode = mode;
+		PBLC->colortype = mode;
 
-		/* set values */			
+		/* set values */
 		if (PRVT->ncomponents == 3) {
 			if (mode == IMAGE_YCBCR && PRVT->keepyuv == 0) {
 				mode = IMAGE_RGB;
@@ -1811,10 +1812,10 @@ jpgr_initdecoder(TJPGReader* jpgr, TImageInfo* info)
 		
 		info->sizey = jpgr->sizey;
 		info->sizex = jpgr->sizex;
-		info->cmode = mode;
-		info->bpc = 8;
+		info->colortype = mode;
+		info->depth = 8;
+
 		info->imgsize = jpgr->sizex * jpgr->sizey * PRVT->ncomponents;
-		
 		info->rmemory = PRVT->requiredmem;
 		SETSTATE(1);
 		return 1;

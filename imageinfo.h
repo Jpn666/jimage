@@ -33,7 +33,7 @@ typedef enum  {
 	IMAGE_RGB       = 3,
 	IMAGE_RGBALPHA  = 4,
 	IMAGE_YCBCR     = 5
-} eImageMode;
+} eColorType;
 
 
 /* */
@@ -42,8 +42,8 @@ struct TImageInfo {
 	uintxx sizex;
 	uintxx sizey;
 	
-	uintxx cmode;  /* color mode */
-	uintxx bpc;    /* bits per channel */
+	uintxx colortype;  /* color mode */
+	uintxx depth;      /* bits per channel */
 	
 	/* size in bytes */
 	uintxx imgsize;
@@ -81,7 +81,7 @@ imginfo_getpelsize(TImageInfo* imginfo)
 	ASSERT(imginfo);
 	
 	pelsize = 0;
-	switch (imginfo->cmode) {
+	switch (imginfo->colortype) {
 		case IMAGE_GRAY:      pelsize = 1; break;
 		case IMAGE_GRAYALPHA: pelsize = 2; break;
 		case IMAGE_RGBALPHA:  pelsize = 4; break;
@@ -89,7 +89,7 @@ imginfo_getpelsize(TImageInfo* imginfo)
 		case IMAGE_YCBCR:
 			pelsize = 3; break;
 	}
-	return pelsize * (imginfo->bpc >> 3);
+	return pelsize * (imginfo->depth >> 3);
 }
 
 CTB_INLINE uintxx
