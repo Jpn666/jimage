@@ -409,7 +409,7 @@ jpgr_reset(TJPGReader* jpgr)
 
 	PRVT->isrgb   = 0;
 	PRVT->keepyuv = 0;
-	for (i = 0; i < 3; i++) {		
+	for (i = 0; i < 3; i++) {
 		c = PRVT->components + i;
 		
 		c->dctable = NULL;
@@ -2121,11 +2121,11 @@ fecthbits(struct TJPGRPblc* jpgr)
 	if (LIKELY(((uintxx) (PRVT->end - PRVT->bgn)) >= BUFFERBYTES)) {
 		for (; index < BPREFETCHBZ; PRVT->bgn += 2) {
 			if (UNLIKELY(PRVT->bgn[0] == 0xff)) {
-				PRVT->bbcread += (index << 1) << 3;	
+				PRVT->bbcread += (index << 1) << 3;
 				goto L_SLOW;
 			}
 			if (UNLIKELY(PRVT->bgn[1] == 0xff)) {
-				PRVT->bbcread += (index << 1) << 3;	
+				PRVT->bbcread += (index << 1) << 3;
 				goto L_SLOW;
 			}
 			
@@ -2267,7 +2267,7 @@ decodesymbol(struct TJPGACHmTable* table, uintxx bits)
 		
 		offset = GETSYMBOL(s & ((1u << 15) - 1));
 		extra  = GETLENGTH(s);
-		s = table->symbols[offset + ((bits & ROOTMASK) >> extra)];		
+		s = table->symbols[offset + ((bits & ROOTMASK) >> extra)];
 	}
 	return s;
 }
@@ -3504,7 +3504,7 @@ refineDC(struct TJPGRPblc* jpgr)
 				}
 			}
 		}
-		if (UNLIKELY(overread(jpgr)) == 1) {
+		if (UNLIKELY(overread(jpgr) == 1)) {
 			return 0;
 		}
 	}
@@ -3606,7 +3606,7 @@ readfirstAC(struct TJPGRPblc* jpgr)
 				return 0;
 			}
 		}
-		if (UNLIKELY(overread(jpgr)) == 1) {
+		if (UNLIKELY(overread(jpgr) == 1)) {
 			return 0;
 		}
 	}
@@ -3768,7 +3768,7 @@ refineAC(struct TJPGRPblc* jpgr)
 				return 0;
 			}
 		}
-		if (UNLIKELY(overread(jpgr)) == 1) {
+		if (UNLIKELY(overread(jpgr) == 1)) {
 			return 0;
 		}
 	}

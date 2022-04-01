@@ -158,7 +158,7 @@ pngr_reset(TPNGReader* pngr)
 
 	/* header */
 	PBLC->sizex = 0;
-	PBLC->sizey = 0;	
+	PBLC->sizey = 0;
 	PBLC->colordepth  = 0;
 	PBLC->colortype   = 0;
 	PBLC->compression = 0;
@@ -335,6 +335,8 @@ getchunkhead(struct TPNGRPblc* pngr)
 #define CRC32_PHYS 0x5216BA54
 
 
+#if DOCRC
+
 CTB_INLINE void
 initcrc32(struct TPNGRPblc* pngr, uint32 crc)
 {
@@ -342,6 +344,8 @@ initcrc32(struct TPNGRPblc* pngr, uint32 crc)
 	if ((pngr->flags & PNGR_NOCRCCHECK) == 0)
 		PRVT->docrc = 1;
 }
+
+#endif
 
 #if DOCRC
 	#define INITCRC32(R, CRC) initcrc32((R), (CRC))
