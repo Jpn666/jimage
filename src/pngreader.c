@@ -1813,7 +1813,7 @@ inflateidat(struct TPNGRPblc* pngr)
 				
 				checkcrc32(pngr);
 				if (pngr->error) {
-					return 0;
+					break;
 				}
 				
 				head = getchunkhead(pngr);

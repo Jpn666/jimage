@@ -422,7 +422,7 @@ jpgr_reset(TJPGReader* jpgr)
 		c->ncols = 0;
 		c->nrows = 0;
 		c->cofficient = 0;
-		c->id = -1;
+		c->id = (uint32) -1;
 	}
 	
 	for (i = 0; i < 4; i++) {
@@ -1634,7 +1634,7 @@ findcomponent(struct TJPGRPblc* jpgr, uintxx id)
 			return i;
 		}
 	}
-	return -1;
+	return (uintxx) -1;
 }
 
 static uintxx
@@ -1681,7 +1681,8 @@ parseSOS(struct TJPGRPblc* jpgr)
 	if (r < total || (s = readinput(jpgr, total)) == NULL) {
 		return 0;
 	}
-
+	
+	(void) index;
 	for (i = 0; i < j; i++) {
 		index = findcomponent(jpgr, s[0]);
 		if (index == (uintxx) -1) {
@@ -2747,7 +2748,7 @@ toRGB(int16 y, int16 cb, int16 cr, uintxx transform)
 			b = 0;
 	}
 
-	return (struct TJPGRGB) {r, g, b};
+	return (struct TJPGRGB) {(uint8) r, (uint8) g, (uint8) b};
 }
 
 CTB_INLINE uint8
@@ -3879,7 +3880,6 @@ jpgr_decodeimg(TJPGReader* jpgr)
 	}
 
 	if (PRVT->isinterleaved == 0) {
-		uintxx i;
 		uintxx last;
 		uint8 components[4];
 
