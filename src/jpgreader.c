@@ -1682,8 +1682,7 @@ parseSOS(struct TJPGRPblc* jpgr)
 		return 0;
 	}
 	
-	(void) index;
-	for (i = 0; i < j; i++) {
+	for (i = index = 0; i < j; i++) {
 		index = findcomponent(jpgr, s[0]);
 		if (index == (uintxx) -1) {
 			SETERROR(JPGR_EBADDATA);
