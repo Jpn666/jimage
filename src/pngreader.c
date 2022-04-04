@@ -212,7 +212,7 @@ pngr_reset(TPNGReader* pngr)
 	PBLC->physunit = 0;
 	
 	/* private stuff */
-	PRVT->chunkmap = (struct TPNGRChunkMap) {0};
+	PRVT->chunkmap = (struct TPNGRChunkMap) {0, 0, 0, 0, 0, 0, 0, 0, 0};
 	PRVT->hasalpha = 0;
 
 	PRVT->crc32 = 0;

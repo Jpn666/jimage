@@ -432,7 +432,7 @@ jpgr_reset(TJPGReader* jpgr)
 		PRVT->actables[i].defined = 0;
 	}
 
-	PRVT->segmentmap = (struct TJPGRSegmentMap) {0};
+	PRVT->segmentmap = (struct TJPGRSegmentMap) {0, 0, 0}
 	
 	PRVT->sourceend = PRVT->source + BUFFERSIZE;
 	PRVT->bgn = PRVT->source;
@@ -1997,7 +1997,7 @@ buildtable(struct TJPGHmTable* table, uintxx mode, uint8* lns, uint8* symbols)
 	}
 	
 	/* reset the main entries in the table */
-	for (i = 0; i < 1u << ROOTBITS; i++) {
+	for (i = 0; i < 1l << ROOTBITS; i++) {
 		table->symbols[i] = 0;
 	}
 	
