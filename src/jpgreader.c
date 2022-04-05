@@ -432,7 +432,7 @@ jpgr_reset(TJPGReader* jpgr)
 		PRVT->actables[i].defined = 0;
 	}
 
-	PRVT->segmentmap = (struct TJPGRSegmentMap) {0, 0, 0}
+	PRVT->segmentmap = (struct TJPGRSegmentMap) {0, 0, 0};
 	
 	PRVT->sourceend = PRVT->source + BUFFERSIZE;
 	PRVT->bgn = PRVT->source;
