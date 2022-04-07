@@ -1,12 +1,12 @@
 /*
- * Copyright (C) 2021, jpn 
- * 
+ * Copyright (C) 2021, jpn
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -100,7 +100,7 @@
  * for all the tables. */
 struct TJPGHmTable {
 	uintxx defined;
-	
+
 	/* symbol or offset (11 bits) | length (5 bits) */
 	uint16 symbols[1];
 };
@@ -127,7 +127,7 @@ struct TJPGACHmTable {
 /* Quantization table */
 struct TJPGQnTable {
 	uintxx defined;
-	
+
 	/* quantization values */
 	int16* values;
 	uint8 storage[64 * sizeof(int16) + 16]; /* for alignment to 16 */
@@ -153,22 +153,22 @@ struct TJPGQnTable {
 struct TJPGRPrvt {
 	/* public fields */
 	struct TJPGRPblc hidden;
-	
+
 	uintxx ysampling;
 	uintxx xsampling;
 	uint32 issubsampled;
-	
+
 	/* scan size in number of MCU and the total number of units */
 	uintxx nrows;
 	uintxx ncols;
 
 	uintxx nunits;
-	
+
 	/* component in the scan (if it's a single scan) and number of components
 	 * in the scan */
 	uintxx nscancomponents;
 	uintxx scancomponent;
-	
+
 	/* component order */
 	uintxx corder[3];
 
@@ -178,7 +178,7 @@ struct TJPGRPrvt {
 
 	/* number of components in the image */
 	uint32 ncomponents;
-	
+
 	/* to ensure segment order */
 	struct TJPGRSegmentMap {
 		uintxx APP0s: 1;
@@ -186,31 +186,31 @@ struct TJPGRPrvt {
 		uintxx  SOSs: 1;
 	}
 	segmentmap;
-	
+
 	/* */
 	uint32 isinterleaved;
-	
+
 	/* progressive parameters */
 	uint32 al;  /* sucessive approximation */
 	uint32 ah;
-	
+
 	uint32 ss;  /* spectral selection start and end */
 	uint32 se;
 	intxx  eobrun;
-	
+
 	/* current pass in a progressive image */
 	uint32 npass;
-	
+
 	/* restart interval */
 	uint32 rinterval;
-	
+
 	/* to map MCU to the final image */
 	uint8 originy[16];
 	uint8 originx[16];
-	
+
 	/* decoded image data */
 	uint8* pixels;
-	
+
 	/* allocated memory for the ICC profile (if any) */
 	uint8* iccpmemory;
 	uint8* iccpappend;
@@ -224,28 +224,28 @@ struct TJPGRPrvt {
 
 	/* input callback */
 	TIMGInputFn inputfn;
-	
+
 	/* input callback parameter */
 	void* payload;
-	
+
 	/* bit buffer */
 	BBTYPE bbuffer;
 	uintxx bbcount;
 	intxx  bbcread;
 	uintxx bend;
-	
+
 	/* bit prefecth buffer */
 	uint16 bb[BPREFETCHBZ];
 	uint32 bindex;
-	
+
 	/* flag used to indicate the end of the input */
 	uint32 endofinput;
-	
+
 	/* input handling */
 	uint8* bgn;
 	uint8* end;
 	uint8* sourceend;
-	
+
 	/* input buffer */
 	uint8 source[4096];
 
@@ -253,21 +253,21 @@ struct TJPGRPrvt {
 	struct TJPGComponent {
 		uint32 ysampling;
 		uint32 xsampling;
-		
+
 		/* component ID */
 		uint32 id;
 
 		/* size without padding (for non-interleaved decoding) */
 		uintxx nrows;
 		uintxx ncols;
-		
+
 		/* size with padding */
 		uintxx irows;
 		uintxx icols;
-		
+
 		/* upsample map */
 		const uint8* umap;
-		
+
 		/* block index and upsample offset for each block in the component */
 		uint8 iblock[16];
 		uint8 offset[16];
@@ -281,31 +281,31 @@ struct TJPGRPrvt {
 		/* huffman tables */
 		struct TJPGDCHmTable* dctable;
 		struct TJPGACHmTable* actable;
-		
+
 		/* quantization table */
 		struct TJPGQnTable* qtable;
-		
+
 		intxx cofficient;
-		
+
 		/* complete component scan units in a non-interleaved or progressive
 		 * image */
 		int16* scan;
-		
+
 		/* scan units */
 		int16* units[8];
 
 		/* used for upsampling */
 		int16* srow;
-		
+
 		/* number of units in the scan or component */
 		uintxx ucount;
 	}
 	components[3];
-	
+
 	/* huffman tables */
 	struct TJPGDCHmTable dctables[4];
 	struct TJPGACHmTable actables[4];
-	
+
 	/* quantization tables */
 	struct TJPGQnTable qtables[4];
 };
@@ -322,23 +322,23 @@ jpgr_create(eJPGRFlags flags)
 {
 	uintxx i;
 	struct TJPGRPblc* jpgr;
-	
+
 	jpgr = CTB_MALLOC(sizeof(struct TJPGRPrvt));
 	if (jpgr == NULL) {
 		return NULL;
 	}
-	
+
 	/* align the quantization tables to 16 (we need this to use SIMD) */
 	for (i = 0; i < 4; i++) {
 		struct TJPGQnTable* qtable;
 		qtable = PRVT->qtables + i;
-		
+
 		qtable->values = (void*) ((((uintxx) qtable->storage) | 15) + 1);
 	}
-	
+
 	PRVT->iccpmemory = NULL;
 	jpgr_reset(jpgr);
-	
+
 	PBLC->flags = flags;
 	return jpgr;
 }
@@ -352,14 +352,14 @@ jpgr_reset(TJPGReader* jpgr)
 	uintxx i;
 	struct TJPGComponent* c;
 	ASSERT(jpgr);
-	
+
 	/* public fields */
 	PBLC->state = 0;
 	PBLC->error = 0;
-	
+
 	PBLC->sizex = 0;
 	PBLC->sizey = 0;
-	
+
 	PBLC->colortype = 0;
 	PBLC->depth     = 0;
 	PBLC->requiredmemory = 0;
@@ -373,7 +373,7 @@ jpgr_reset(TJPGReader* jpgr)
 
 	PBLC->iccprofile = NULL;
 	PBLC->iccpsize   = 0;
-	
+
 	/* private fields */
 	PRVT->ncomponents   = 0;
 	PRVT->isinterleaved = 0;
@@ -393,9 +393,9 @@ jpgr_reset(TJPGReader* jpgr)
 	PRVT->nrows  = 0;
 	PRVT->ncols  = 0;
 	PRVT->nunits = 0;
-	
+
 	PRVT->pixels = NULL;
-	
+
 	PRVT->al = 0;
 	PRVT->ah = 0;
 	PRVT->ss = 0;
@@ -403,7 +403,7 @@ jpgr_reset(TJPGReader* jpgr)
 	PRVT->eobrun = 0;
 	PRVT->npass  = 0;
 	PRVT->rinterval   = 0;
-		
+
 	PRVT->inputfn = NULL;
 	PRVT->payload = NULL;
 
@@ -411,20 +411,20 @@ jpgr_reset(TJPGReader* jpgr)
 	PRVT->keepyuv = 0;
 	for (i = 0; i < 3; i++) {
 		c = PRVT->components + i;
-		
+
 		c->dctable = NULL;
 		c->actable = NULL;
 		c->qtable  = NULL;
-		
+
 		c->ysampling = 0;
 		c->xsampling = 0;
-		
+
 		c->ncols = 0;
 		c->nrows = 0;
 		c->cofficient = 0;
 		c->id = (uint32) -1;
 	}
-	
+
 	for (i = 0; i < 4; i++) {
 		PRVT->qtables[i].defined = 0;
 
@@ -433,7 +433,7 @@ jpgr_reset(TJPGReader* jpgr)
 	}
 
 	PRVT->segmentmap = (struct TJPGRSegmentMap) {0, 0, 0};
-	
+
 	PRVT->sourceend = PRVT->source + BUFFERSIZE;
 	PRVT->bgn = PRVT->source;
 	PRVT->end = PRVT->source;
@@ -458,7 +458,7 @@ void
 jpgr_setinputfn(TJPGReader* jpgr, TIMGInputFn fn, void* user)
 {
 	ASSERT(jpgr);
-	
+
 	if (jpgr->state != 0) {
 		SETERROR(JPGR_EBADUSE);
 		SETSTATE(JPGR_EBADSTATE);
@@ -477,23 +477,23 @@ readmore(struct TJPGRPblc* jpgr, uintxx avaible, uintxx amount)
 {
 	uintxx remaining;
 	intxx r;
-	
+
 	remaining = (uintxx) (PRVT->sourceend - PRVT->end);
 	if (LIKELY(remaining + avaible < amount)) {
 		if (avaible) {
 			memmove(PRVT->source, PRVT->bgn, avaible);
 		}
-		
+
 		PRVT->bgn = PRVT->source;
 		PRVT->end = PRVT->source + avaible;
-			
+
 		remaining = BUFFERSIZE - avaible;
 	}
-	
+
 	if (PRVT->endofinput) {
 		return avaible;
 	}
-	
+
 	r = PRVT->inputfn(PRVT->end, remaining, PRVT->payload);
 	if (LIKELY(r > 0)) {
 		avaible   += r;
@@ -506,7 +506,7 @@ readmore(struct TJPGRPblc* jpgr, uintxx avaible, uintxx amount)
 			return 0;
 		}
 	}
-	
+
 	return avaible;
 }
 
@@ -514,12 +514,12 @@ CTB_INLINE bool
 ensurebytes(struct TJPGRPblc* jpgr, uintxx amount)
 {
 	uintxx avaible;
-	
+
 	avaible = (uintxx) (PRVT->end - PRVT->bgn);
 	if (UNLIKELY(avaible < amount)) {
 		avaible = readmore(jpgr, avaible, amount);
 	}
-	
+
 	if (avaible >= amount) {
 		return 1;
 	}
@@ -536,12 +536,12 @@ CTB_INLINE void
 skipbytes(struct TJPGRPblc* jpgr, uintxx amount)
 {
 	uintxx r;
-	
+
 	while (amount) {
 		r = amount;
 		if (r > 256)
 			r = 256;
-		
+
 		if (ensurebytes(jpgr, r) == 0) {
 			break;
 		}
@@ -554,7 +554,7 @@ CTB_INLINE uint8*
 readinput(struct TJPGRPblc* jpgr, uintxx amount)
 {
 	uint8* s;
-	
+
 	if (LIKELY(ensurebytes(jpgr, amount))) {
 		s = PRVT->bgn;
 		consumebytes(jpgr, amount);
@@ -571,7 +571,7 @@ CTB_INLINE uint16
 read16(struct TJPGRPblc* jpgr)
 {
 	uint8* s;
-	
+
 	s = readinput(jpgr, 2);
 	if (UNLIKELY(s == NULL)) {
 		return 0;
@@ -583,11 +583,11 @@ CTB_INLINE uint16
 readmarker(struct TJPGRPblc* jpgr)
 {
 	uint8* s;
-	
+
 	if ((s = readinput(jpgr, 1)) == NULL) {
 		return 0;
 	}
-	
+
 	if (s[0] == 0xff) {
 		do {
 			s = readinput(jpgr, 1);
@@ -595,7 +595,7 @@ readmarker(struct TJPGRPblc* jpgr)
 				return 0;
 			}
 		} while (s[0] == 0xff);
-		
+
 		return TOI16(0xff, s[0]);
 	}
 	return s[0];
@@ -615,7 +615,7 @@ static uintxx
 parsesegments(struct TJPGRPblc* jpgr)
 {
 	uint16 m;
-	
+
 	for (;;) {
 		m = readmarker(jpgr);
 		if (m == EOI) {
@@ -629,14 +629,14 @@ parsesegments(struct TJPGRPblc* jpgr)
 			SETSTATE(4);
 			break;
 		}
-		
+
 		switch (m) {
 			case APP0:
 				if (parseAPP0(jpgr) == 0) {
 					return 0;
 				}
 				continue;
-			
+
 			/* ICCP */
 			case APP2:
 				if ((jpgr->flags & JPGR_IGNOREICCP) == 0) {
@@ -652,7 +652,7 @@ parsesegments(struct TJPGRPblc* jpgr)
 					return 0;
 				}
 				continue;
-			
+
 			case SOF2:
 			case SOF1:
 			case SOF0:
@@ -660,7 +660,7 @@ parsesegments(struct TJPGRPblc* jpgr)
 					return 0;
 				}
 				continue;
-			
+
 			/* not supported markers */
 			case SOF3:
 			case SOF5:
@@ -668,47 +668,47 @@ parsesegments(struct TJPGRPblc* jpgr)
 			case SOF7:
 				SETERROR(JPGR_ENOSUPPORTED);
 				return 0;
-			
+
 			case DHT:
 				if (parseDHT(jpgr) == 0) {
 					return 0;
 				}
 				continue;
-			
+
 			case DRI:
 				if (parseDRI(jpgr) == 0) {
 					return 0;
 				}
 				continue;
-			
+
 			case SOS:
 				if (parseSOS(jpgr) == 0) {
 					return 0;
 				}
 				return 1;
 		}
-		
+
 		if (((m >= 0xffd0 && m <= 0xffd9) || m == 0xff01) == 0) {
 			uint16 r;
-			
+
 			r = read16(jpgr);
 			if (r < 2) {
 				return 0;
 			}
 			r -= 2;
-			
+
 			skipbytes(jpgr, r);
 			if (jpgr->error) {
 				return 0;
 			}
 		}
-		
+
 		/* bad marker value */
 		if (((m >> 8) ^ 0xff) != 0) {
 			return 0;
 		}
 	}
-	
+
 	return 1;
 }
 
@@ -725,7 +725,7 @@ parseAPP0(struct TJPGRPblc* jpgr)
 	uint16 r;
 	uint32 signature;
 	uint8* s;
-	
+
 	r = read16(jpgr);
 	if (r < 1) {
 		return 0;
@@ -737,7 +737,7 @@ parseAPP0(struct TJPGRPblc* jpgr)
 		goto L_SKIP;
 	}
 	PRVT->segmentmap.APP0s = 1;
-	
+
 	if (PRVT->segmentmap.SOFXs == 1) {
 		ADDWARNING(JPGR_SEGMENTORDER);
 	}
@@ -751,7 +751,7 @@ parseAPP0(struct TJPGRPblc* jpgr)
 		ADDWARNING(JPGR_BADSIGNATURE);
 		goto L_SKIP;
 	}
-	
+
 	if (r < 7 || (s = readinput(jpgr, 7)) == NULL ) {
 		return 0;
 	}
@@ -762,13 +762,13 @@ parseAPP0(struct TJPGRPblc* jpgr)
 		ADDWARNING(JPGR_BADVERSION);
 		goto L_SKIP;
 	}
-	
+
 	/* density units */
 	s += 2;
 	jpgr->unit = s[0];
 	jpgr->ydensity = TOI16(s[1], s[2]);
 	jpgr->xdensity = TOI16(s[3], s[4]);
-	
+
 L_SKIP:
 	if (r) {
 		skipbytes(jpgr, r);
@@ -788,7 +788,7 @@ CTB_INLINE uintxx
 checkiccheader(struct TJPGRPblc* jpgr, uint8* s)
 {
 	uintxx size;
-	
+
 	/* offset zero is the profile size (uint32), signature is at
 	 * offset 36 (0x61637370) "acsp" */
 	size = TOI32(s[0], s[1], s[2], s[3]);
@@ -830,7 +830,7 @@ readiccp(struct TJPGRPblc* jpgr, uintxx remaining)
 		total = v;
 		if (total > 256)
 			total = 256;
-		
+
 		if (total == 0) {
 			break;
 		}
@@ -900,7 +900,7 @@ primeiccpchunk(struct TJPGRPblc* jpgr, uintxx r)
 		PRVT->iccpappend = buffer;
 		PRVT->iccpsize = total;
 	}
-	
+
 	PRVT->iccptotal  = total;
 	PRVT->iccpappend = PRVT->iccpmemory;
 
@@ -1020,7 +1020,7 @@ parseDRI(struct TJPGRPblc* jpgr)
 	if (r <= 2) {
 		return 0;
 	}
-	
+
 	if (r != 4 || (s = readinput(jpgr, 2)) == NULL) {
 		return 0;
 	}
@@ -1040,7 +1040,7 @@ static const uint8 zzorder[] = {
 	43, 50, 57, 58, 51, 44, 37, 30,
 	23, 31, 38, 45, 52, 59, 60, 53,
 	46, 39, 47, 54, 61, 62, 55, 63,
-	
+
 	/* extra values to prevent overflow during decoding */
 	63, 63, 63, 63, 63, 63, 63, 63,
 	63, 63, 63, 63, 63, 63, 63, 63,
@@ -1053,53 +1053,53 @@ parseDQT(struct TJPGRPblc* jpgr)
 	uint8* s;
 	uint8 total;
 	uintxx tablemap;
-	
+
 	r = read16(jpgr);
 	if (r <= 1) {
 		return 0;
 	}
 	r -= 2;
-	
+
 	tablemap = 0;
 	while (r) {
 		uint8 id;
 		uint8 precision;
 		uintxx i;
 		struct TJPGQnTable* table;
-		
+
 		if ((s = readinput(jpgr, 1)) == NULL) {
 			return 0;
 		}
 		r--;
-		
+
 		id        = (s[0] >> 0) & 0x0f;
 		precision = (s[0] >> 4) & 0x0f;
-		
+
 		i = ((uintxx) 1) << id;
 		if (tablemap & i || id > 3) {
 			SETERROR(JPGR_ETABLEID);
 			return 0;
 		}
 		tablemap |= 1;
-		
+
 		total = 64;
 		if (precision)
 			total = 128;
-		
+
 		if (r < total) {
 			return 0;
 		}
-		
+
 		s = readinput(jpgr, total);
 		if (s == NULL) {
 			return 0;
 		}
 		r -= total;
-		
+
 		table = PRVT->qtables + id;
 		for (i = 0; i < 64; i++) {
 			intxx v;
-			
+
 			if (precision == 0) {
 				v = s[i];
 			}
@@ -1110,92 +1110,92 @@ parseDQT(struct TJPGRPblc* jpgr)
 		}
 		table->defined = 1;
 	};
-	
+
 	return 1;
 }
 
 
 static const uint8 upscalemap[][64] = {
-    {  /* 1 1 */
-        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-        0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
-        0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
-        0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
-        0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27,
-        0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f,
-        0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
-        0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f
-    },
-    {  /* 1 2 */
-        0x00, 0x00, 0x01, 0x01, 0x02, 0x02, 0x03, 0x03,
-        0x08, 0x08, 0x09, 0x09, 0x0a, 0x0a, 0x0b, 0x0b,
-        0x10, 0x10, 0x11, 0x11, 0x12, 0x12, 0x13, 0x13,
-        0x18, 0x18, 0x19, 0x19, 0x1a, 0x1a, 0x1b, 0x1b,
-        0x20, 0x20, 0x21, 0x21, 0x22, 0x22, 0x23, 0x23,
-        0x28, 0x28, 0x29, 0x29, 0x2a, 0x2a, 0x2b, 0x2b,
-        0x30, 0x30, 0x31, 0x31, 0x32, 0x32, 0x33, 0x33,
-        0x38, 0x38, 0x39, 0x39, 0x3a, 0x3a, 0x3b, 0x3b
-    },
-    {  /* 1 4 */
-        0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01,
-        0x08, 0x08, 0x08, 0x08, 0x09, 0x09, 0x09, 0x09,
-        0x10, 0x10, 0x10, 0x10, 0x11, 0x11, 0x11, 0x11,
-        0x18, 0x18, 0x18, 0x18, 0x19, 0x19, 0x19, 0x19,
-        0x20, 0x20, 0x20, 0x20, 0x21, 0x21, 0x21, 0x21,
-        0x28, 0x28, 0x28, 0x28, 0x29, 0x29, 0x29, 0x29,
-        0x30, 0x30, 0x30, 0x30, 0x31, 0x31, 0x31, 0x31,
-        0x38, 0x38, 0x38, 0x38, 0x39, 0x39, 0x39, 0x39
-    },
-    {  /* 2 1 */
-        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-        0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
-        0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
-        0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
-        0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
-        0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
-        0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f
-    },
-    {  /* 2 2 */
-        0x00, 0x00, 0x01, 0x01, 0x02, 0x02, 0x03, 0x03,
-        0x00, 0x00, 0x01, 0x01, 0x02, 0x02, 0x03, 0x03,
-        0x08, 0x08, 0x09, 0x09, 0x0a, 0x0a, 0x0b, 0x0b,
-        0x08, 0x08, 0x09, 0x09, 0x0a, 0x0a, 0x0b, 0x0b,
-        0x10, 0x10, 0x11, 0x11, 0x12, 0x12, 0x13, 0x13,
-        0x10, 0x10, 0x11, 0x11, 0x12, 0x12, 0x13, 0x13,
-        0x18, 0x18, 0x19, 0x19, 0x1a, 0x1a, 0x1b, 0x1b,
-        0x18, 0x18, 0x19, 0x19, 0x1a, 0x1a, 0x1b, 0x1b
-    },
-    {  /* 2 4 */
-        0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01,
-        0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01,
-        0x08, 0x08, 0x08, 0x08, 0x09, 0x09, 0x09, 0x09,
-        0x08, 0x08, 0x08, 0x08, 0x09, 0x09, 0x09, 0x09,
-        0x10, 0x10, 0x10, 0x10, 0x11, 0x11, 0x11, 0x11,
-        0x10, 0x10, 0x10, 0x10, 0x11, 0x11, 0x11, 0x11,
-        0x18, 0x18, 0x18, 0x18, 0x19, 0x19, 0x19, 0x19,
-        0x18, 0x18, 0x18, 0x18, 0x19, 0x19, 0x19, 0x19
-    },
-    {  /* 4 1 */
-        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-        0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
-        0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
-        0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
-        0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f
-    },
-    {  /* 4 2 */
-        0x00, 0x00, 0x01, 0x01, 0x02, 0x02, 0x03, 0x03,
-        0x00, 0x00, 0x01, 0x01, 0x02, 0x02, 0x03, 0x03,
-        0x00, 0x00, 0x01, 0x01, 0x02, 0x02, 0x03, 0x03,
-        0x00, 0x00, 0x01, 0x01, 0x02, 0x02, 0x03, 0x03,
-        0x08, 0x08, 0x09, 0x09, 0x0a, 0x0a, 0x0b, 0x0b,
-        0x08, 0x08, 0x09, 0x09, 0x0a, 0x0a, 0x0b, 0x0b,
-        0x08, 0x08, 0x09, 0x09, 0x0a, 0x0a, 0x0b, 0x0b,
-        0x08, 0x08, 0x09, 0x09, 0x0a, 0x0a, 0x0b, 0x0b
-    }
+	{  /* 1 1 */
+		0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+		0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+		0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+		0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+		0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27,
+		0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f,
+		0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
+		0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f
+	},
+	{  /* 1 2 */
+		0x00, 0x00, 0x01, 0x01, 0x02, 0x02, 0x03, 0x03,
+		0x08, 0x08, 0x09, 0x09, 0x0a, 0x0a, 0x0b, 0x0b,
+		0x10, 0x10, 0x11, 0x11, 0x12, 0x12, 0x13, 0x13,
+		0x18, 0x18, 0x19, 0x19, 0x1a, 0x1a, 0x1b, 0x1b,
+		0x20, 0x20, 0x21, 0x21, 0x22, 0x22, 0x23, 0x23,
+		0x28, 0x28, 0x29, 0x29, 0x2a, 0x2a, 0x2b, 0x2b,
+		0x30, 0x30, 0x31, 0x31, 0x32, 0x32, 0x33, 0x33,
+		0x38, 0x38, 0x39, 0x39, 0x3a, 0x3a, 0x3b, 0x3b
+	},
+	{  /* 1 4 */
+		0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01,
+		0x08, 0x08, 0x08, 0x08, 0x09, 0x09, 0x09, 0x09,
+		0x10, 0x10, 0x10, 0x10, 0x11, 0x11, 0x11, 0x11,
+		0x18, 0x18, 0x18, 0x18, 0x19, 0x19, 0x19, 0x19,
+		0x20, 0x20, 0x20, 0x20, 0x21, 0x21, 0x21, 0x21,
+		0x28, 0x28, 0x28, 0x28, 0x29, 0x29, 0x29, 0x29,
+		0x30, 0x30, 0x30, 0x30, 0x31, 0x31, 0x31, 0x31,
+		0x38, 0x38, 0x38, 0x38, 0x39, 0x39, 0x39, 0x39
+	},
+	{  /* 2 1 */
+		0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+		0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+		0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+		0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+		0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+		0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+		0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+		0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f
+	},
+	{  /* 2 2 */
+		0x00, 0x00, 0x01, 0x01, 0x02, 0x02, 0x03, 0x03,
+		0x00, 0x00, 0x01, 0x01, 0x02, 0x02, 0x03, 0x03,
+		0x08, 0x08, 0x09, 0x09, 0x0a, 0x0a, 0x0b, 0x0b,
+		0x08, 0x08, 0x09, 0x09, 0x0a, 0x0a, 0x0b, 0x0b,
+		0x10, 0x10, 0x11, 0x11, 0x12, 0x12, 0x13, 0x13,
+		0x10, 0x10, 0x11, 0x11, 0x12, 0x12, 0x13, 0x13,
+		0x18, 0x18, 0x19, 0x19, 0x1a, 0x1a, 0x1b, 0x1b,
+		0x18, 0x18, 0x19, 0x19, 0x1a, 0x1a, 0x1b, 0x1b
+	},
+	{  /* 2 4 */
+		0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01,
+		0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01,
+		0x08, 0x08, 0x08, 0x08, 0x09, 0x09, 0x09, 0x09,
+		0x08, 0x08, 0x08, 0x08, 0x09, 0x09, 0x09, 0x09,
+		0x10, 0x10, 0x10, 0x10, 0x11, 0x11, 0x11, 0x11,
+		0x10, 0x10, 0x10, 0x10, 0x11, 0x11, 0x11, 0x11,
+		0x18, 0x18, 0x18, 0x18, 0x19, 0x19, 0x19, 0x19,
+		0x18, 0x18, 0x18, 0x18, 0x19, 0x19, 0x19, 0x19
+	},
+	{  /* 4 1 */
+		0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+		0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+		0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+		0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+		0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+		0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+		0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+		0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f
+	},
+	{  /* 4 2 */
+		0x00, 0x00, 0x01, 0x01, 0x02, 0x02, 0x03, 0x03,
+		0x00, 0x00, 0x01, 0x01, 0x02, 0x02, 0x03, 0x03,
+		0x00, 0x00, 0x01, 0x01, 0x02, 0x02, 0x03, 0x03,
+		0x00, 0x00, 0x01, 0x01, 0x02, 0x02, 0x03, 0x03,
+		0x08, 0x08, 0x09, 0x09, 0x0a, 0x0a, 0x0b, 0x0b,
+		0x08, 0x08, 0x09, 0x09, 0x0a, 0x0a, 0x0b, 0x0b,
+		0x08, 0x08, 0x09, 0x09, 0x0a, 0x0a, 0x0b, 0x0b,
+		0x08, 0x08, 0x09, 0x09, 0x0a, 0x0a, 0x0b, 0x0b
+	}
 };
 
 
@@ -1211,11 +1211,11 @@ initcomponents(struct TJPGRPblc* jpgr, uintxx ys, uintxx xs)
 	const uintxx f[] = {
 		0x00, 0x03, 0x04, 0x00, 0x05
 	};
-	
+
 	/* MCU dimensions */
 	PRVT->nrows = (jpgr->sizey + ((ys << 3) - 1)) >> f[ys];
 	PRVT->ncols = (jpgr->sizex + ((xs << 3) - 1)) >> f[xs];
-	
+
 	sizey = PRVT->nrows * (ys << 3);
 	sizex = PRVT->ncols * (xs << 3);
 	for (i = 0; i < PRVT->ncomponents; i++) {
@@ -1229,9 +1229,9 @@ initcomponents(struct TJPGRPblc* jpgr, uintxx ys, uintxx xs)
 		const uintxx s[] = {
 			0x00, 0x00, 0x01, 0x00, 0x02
 		};
-		
+
 		component = PRVT->components + i;
-		
+
 		/* component size in number of units including padding */
 		bsizey = sizey >> f[PRVT->ysampling >> s[component->ysampling]];
 		bsizex = sizex >> f[PRVT->xsampling >> s[component->xsampling]];
@@ -1241,14 +1241,14 @@ initcomponents(struct TJPGRPblc* jpgr, uintxx ys, uintxx xs)
 			component->ucount = component->ysampling * component->xsampling;
 		}
 		else {
-			component->ucount = bsizey * bsizex;			
+			component->ucount = bsizey * bsizex;
 		}
-		
+
 		bsizey = ys >> s[component->ysampling];
 		bsizex = xs >> s[component->xsampling];
 		component->nrows = (jpgr->sizey + (bsizey << 3) - 1) >> f[bsizey];
 		component->ncols = (jpgr->sizex + (bsizex << 3) - 1) >> f[bsizex];
-		
+
 		/* 1 = 0; 2 = 1; 4 = 3 */
 		rumode = bsizex - 1;
 
@@ -1267,11 +1267,11 @@ initcomponents(struct TJPGRPblc* jpgr, uintxx ys, uintxx xs)
 			ay = (y >> s[bsizey]) * component->xsampling;
 			for (x = 0; x < xs; x++) {
 				uintxx m;
-				
+
 				m = n + ax;
 				component->iblock[j] = (uint8) (ay + (x >> s[bsizex]));
 				component->offset[j] = (uint8) (m & 0x3f);
-				
+
 				ax += totalx;
 				if (ax >= 8)
 					ax -= 8;
@@ -1279,14 +1279,14 @@ initcomponents(struct TJPGRPblc* jpgr, uintxx ys, uintxx xs)
 				component->rumode[j] = (uint8) um;
 				if (bsizex != 1)
 					um++;
-				j++;				
+				j++;
 			}
 			n += totaly;
 		}
 		n = ((s[bsizey] << 1) + s[bsizey]) + s[bsizex];
 		component->umap = upscalemap[n];
 	}
-	
+
 	/* pixel origin for each block */
 	i = 0;
 	for (y = 0; y < ys; y++) {
@@ -1297,7 +1297,7 @@ initcomponents(struct TJPGRPblc* jpgr, uintxx ys, uintxx xs)
 		}
 	}
 	PRVT->nunits = i;
-	
+
 	if (PRVT->ysampling != 1 || PRVT->xsampling != 1) {
 		PRVT->issubsampled = 1;
 	}
@@ -1340,50 +1340,50 @@ parseSOF0(struct TJPGRPblc* jpgr, uintxx progressive)
 {
 	uint16 r;
 	uint8* s;
-    uintxx i;
-    uintxx total;
-    uintxx ysampling;
-    uintxx xsampling;
+	uintxx i;
+	uintxx total;
+	uintxx ysampling;
+	uintxx xsampling;
 
-    if (PRVT->segmentmap.SOFXs == 1) {
-    	/* multi frame image */
-    	SETERROR(JPGR_ENOSUPPORTED);
-    	return 0;
-    }
-    PRVT->segmentmap.SOFXs = 1;
+	if (PRVT->segmentmap.SOFXs == 1) {
+		/* multi frame image */
+		SETERROR(JPGR_ENOSUPPORTED);
+		return 0;
+	}
+	PRVT->segmentmap.SOFXs = 1;
 
 	r = read16(jpgr);
 	if (r < 8) {
 		return 0;
 	}
 	r -= 8;
-	
+
 	s = readinput(jpgr, 6);
 	if (s == NULL) {
 		return 0;
 	}
-	
+
 	/* sampling (we only support 8 bit sampling) */
 	if (s[0] != 8) {
 		SETERROR(JPGR_ENOSUPPORTED);
 		return 0;
 	}
 	s++;
-	
+
 	/* image size */
 	jpgr->sizey = TOI16(s[0], s[1]); s += 2;
 	jpgr->sizex = TOI16(s[0], s[1]); s += 2;
 	if (jpgr->sizey == 0 || jpgr->sizex == 0) {
 		return 0;
 	}
-		
+
 	/* number of components (strict jfif (no 4 components)) */
 	if (s[0] ^ 1 && s[0] ^ 3) {
 		SETERROR(JPGR_ENOSUPPORTED);
 		return 0;
 	}
 	PRVT->ncomponents = s[0];
-	
+
 	if (checksize(jpgr) == 0) {
 		SETERROR(JPGR_ELIMIT);
 		return 0;
@@ -1397,7 +1397,7 @@ parseSOF0(struct TJPGRPblc* jpgr, uintxx progressive)
 	if (s == NULL) {
 		return 0;
 	}
-	
+
 	total = 0;
 	xsampling = 0;
 	ysampling = 0;
@@ -1406,7 +1406,7 @@ parseSOF0(struct TJPGRPblc* jpgr, uintxx progressive)
 		uint8 xs;
 		uint8 ys;
 		struct TJPGComponent* component;
-		
+
 		id = s[0];
 		component = PRVT->components + i;
 		if (component->id != (uint32) -1) {
@@ -1417,7 +1417,7 @@ parseSOF0(struct TJPGRPblc* jpgr, uintxx progressive)
 
 		ys = (s[1] >> 0) & 0x0f;
 		xs = (s[1] >> 4) & 0x0f;
-		
+
 		/* subsampling */
 		if (ys != 1 && ys != 2 && ys != 4) {
 			SETERROR(JPGR_ENOSUPPORTED);
@@ -1427,14 +1427,14 @@ parseSOF0(struct TJPGRPblc* jpgr, uintxx progressive)
 			SETERROR(JPGR_ENOSUPPORTED);
 			return 0;
 		}
-		
+
 		if (ys > ysampling)
 			ysampling = ys;
 		if (xs > xsampling)
 			xsampling = xs;
 		component->ysampling = ys;
 		component->xsampling = xs;
-		
+
 		total += ys * xs;
 
 		/* quantization table */
@@ -1444,7 +1444,7 @@ parseSOF0(struct TJPGRPblc* jpgr, uintxx progressive)
 		component->qtable = PRVT->qtables + s[2];
 		s += 3;
 	}
-	
+
 	if (PRVT->ncomponents == 3) {
 		struct TJPGComponent* c;
 
@@ -1470,7 +1470,7 @@ parseSOF0(struct TJPGRPblc* jpgr, uintxx progressive)
 	}
 	PRVT->ysampling = ysampling;
 	PRVT->xsampling = xsampling;
-	
+
 	jpgr->isprogressive = progressive;
 	return 1;
 }
@@ -1483,7 +1483,7 @@ parseDHT(struct TJPGRPblc* jpgr)
 {
 	uintxx r;
 	uint8* s;
-	uintxx i;	
+	uintxx i;
 	uintxx total;
 	uintxx tablemap;
 	uintxx mode;
@@ -1493,7 +1493,7 @@ parseDHT(struct TJPGRPblc* jpgr)
 		return 0;
 	}
 	r -= 2;
-	
+
 	tablemap = 0;
 	while (r) {
 		uint8 type;
@@ -1505,7 +1505,7 @@ parseDHT(struct TJPGRPblc* jpgr)
 			return 0;
 		}
 		r--;
-		
+
 		id   = (s[0] >> 0) & 0x0f;
 		type = (s[0] >> 4) & 0x0f;
 		if (type > 1 || id > 3) {
@@ -1520,18 +1520,18 @@ parseDHT(struct TJPGRPblc* jpgr)
 			return 0;
 		}
 		tablemap |= i;
-		
+
 		/* counts for each lenght */
 		total = 16;
 		if (r < total || (s = readinput(jpgr, total)) == NULL) {
 			return 0;
 		}
 		r -= 16;
-		
+
 		for (i = total = 0; i < 16; i++) {
 			total += (lns[i] = s[i]);
 		}
-		
+
 		/* symbols */
 		if (256 < total) {
 			return 0;
@@ -1540,12 +1540,12 @@ parseDHT(struct TJPGRPblc* jpgr)
 			return 0;
 		}
 		r -= total;
-		
+
 		table = (void*) (PRVT->dctables + id);
 		if (type == 1) {
 			table = (void*) (PRVT->actables + id);
 		}
-		
+
 		mode = type;
 		if (jpgr->isprogressive == 0) {
 			if (mode == 1) {
@@ -1558,7 +1558,7 @@ parseDHT(struct TJPGRPblc* jpgr)
 		}
 		table->defined = 1;
 	};
-	
+
 	return 1;
 }
 
@@ -1569,20 +1569,20 @@ readpassinfo(struct TJPGRPblc* jpgr, uint8* s)
 	uint8 se;
 	uint8 al;
 	uint8 ah;
-	
+
 	ss = s[0];
 	se = s[1];
 	ah = 0x0f & (s[2] >> 4);
 	al = 0x0f & (s[2] >> 0);
-	
+
 	if (ss > 63 || se > 63 || ss > se) {
 		return 0;
 	}
-	
+
 	if (ah > 13 || al > 13) {
 		return 0;
 	}
-	
+
 	PRVT->ss = ss;
 	PRVT->se = se;
 	PRVT->al = al;
@@ -1596,7 +1596,7 @@ setrequiredmemory(struct TJPGRPblc* jpgr)
 	uintxx i;
 	uint64 total;
 	struct TJPGComponent* c;
-	
+
 	total = 0;
 	if (PRVT->isinterleaved) {
 		for (i = 0; i < PRVT->ncomponents; i++) {
@@ -1608,14 +1608,14 @@ setrequiredmemory(struct TJPGRPblc* jpgr)
 		for (i = 0; i < PRVT->ncomponents; i++) {
 			c = PRVT->components + i;
 			total += c->ucount + (c->ysampling * c->xsampling);
-		}	
+		}
 	}
 	total = (total * 64) * sizeof(c->units[0][0]) + 16;
 
 	if (PRVT->issubsampled) {
 		total += PRVT->ncomponents * (8 * sizeof(c->srow[0]));
 	}
-	
+
 	/* check memory limits */
 	if (total > MAXSAFESIZE1) {
 		return 0;
@@ -1649,7 +1649,7 @@ parseSOS(struct TJPGRPblc* jpgr)
 	uintxx index;
 	uint8 ac;
 	uint8 dc;
-	
+
 	if (PRVT->segmentmap.SOFXs == 0) {
 		SETERROR(JPGR_SEGMENTORDER);
 		return 0;
@@ -1661,11 +1661,11 @@ parseSOS(struct TJPGRPblc* jpgr)
 		return 0;
 	}
 	r -= 2;
-	
+
 	if ((s = readinput(jpgr, 1)) == NULL) {
 		return 0;
 	}
-	
+
 	j = s[0];
 	if (j != 1 && j != 3) {
 		SETERROR(JPGR_ENOSUPPORTED);
@@ -1675,13 +1675,13 @@ parseSOS(struct TJPGRPblc* jpgr)
 		return 0;
 	}
 	PRVT->nscancomponents = j;
-	
+
 	/* component tables, spectral selection and progressive aproximation */
 	total = (j * 2) + 3;
 	if (r < total || (s = readinput(jpgr, total)) == NULL) {
 		return 0;
 	}
-	
+
 	for (i = index = 0; i < j; i++) {
 		index = findcomponent(jpgr, s[0]);
 		if (index == (uintxx) -1) {
@@ -1749,7 +1749,7 @@ parseSOS(struct TJPGRPblc* jpgr)
 				SETERROR(JPGR_ENOHMTABLE);
 				return 0;
 			}
-			
+
 			if (c->qtable->defined == 0) {
 				SETERROR(JPGR_ENOQTTABLE);
 				return 0;
@@ -1772,25 +1772,25 @@ jpgr_initdecoder(TJPGReader* jpgr, TImageInfo* info)
 {
 	uint16 m;
 	ASSERT(jpgr && info);
-	
+
 	if (jpgr->state) {
 		goto L_ERROR;
 	}
-	
+
 	/* at this point we need an input function */
 	if (PRVT->inputfn == NULL) {
 		SETERROR(JPGR_EIOERROR);
 		goto L_ERROR;
 	}
-	
+
 	m = read16(PBLC);
 	if (m == SOI) {
 		uintxx mode;
-		
+
 		if (parsesegments(PBLC) == 0) {
 			goto L_ERROR;
 		}
-		
+
 		/* color mode */
 		mode = IMAGE_GRAY;
 		if (PRVT->ncomponents == 3) {
@@ -1806,7 +1806,7 @@ jpgr_initdecoder(TJPGReader* jpgr, TImageInfo* info)
 				mode = IMAGE_RGB;
 			}
 		}
-		
+
 		info->sizey = jpgr->sizey;
 		info->sizex = jpgr->sizex;
 		info->colortype = mode;
@@ -1825,7 +1825,7 @@ L_ERROR:
 	if (jpgr->error == 0) {
 		SETERROR(JPGR_EBADDATA);
 	}
-	
+
 	SETSTATE(JPGR_BADSTATE);
 	return 0;
 }
@@ -1837,7 +1837,7 @@ jpgr_setbuffers(TJPGReader* jpgr, uint8* memory, uint8* pixels)
 	uintxx j;
 	struct TJPGComponent* c;
 	ASSERT(jpgr && memory);
-	
+
 	if (jpgr->state ^ 1) {
 		SETSTATE(JPGR_BADSTATE);
 		if (jpgr->error == 0) {
@@ -1845,30 +1845,30 @@ jpgr_setbuffers(TJPGReader* jpgr, uint8* memory, uint8* pixels)
 		}
 		return;
 	}
-	
+
 	memory = (uint8*) ((((uintxx) memory) | 15) + 1);
 
 	/* scan memory */
 	if (PRVT->isinterleaved == 0) {
 		for (i = 0; i < PRVT->ncomponents; i++) {
 			c = PRVT->components + i;
-			
+
 			c->scan = (void*) memory;
 			memory += (c->ucount * 64) * (sizeof(c->scan[0]));
 		}
 	}
-	
+
 	/* memory for each unit */
 	for (i = 0; i < PRVT->ncomponents; i++) {
 		uintxx n;
-			
+
 		c = PRVT->components + i;
-		
+
 		n = c->ucount;
 		if (PRVT->isinterleaved == 0) {
 			n = c->ysampling * c->xsampling;
 		}
-		
+
 		for (j = 0; j < n; j++) {
 			c->units[j] = (void*) memory;
 			memory += (64 * sizeof(c->units[0][0]));
@@ -1883,13 +1883,13 @@ jpgr_setbuffers(TJPGReader* jpgr, uint8* memory, uint8* pixels)
 			memory += (8 * sizeof(c->srow[0]));
 		}
 	}
-	
+
 	PRVT->pixels = pixels;
 	if (jpgr->isprogressive && pixels) {
 		memset(pixels, 0, jpgr->sizey * jpgr->sizex * PRVT->ncomponents);
 	}
 	SETSTATE(2);
-	
+
 }
 
 /*
@@ -1921,12 +1921,12 @@ buildextenttable(struct TJPGACHmTable* table)
 	intxx length;
 	intxx rrrr;
 	intxx ssss;
-	
+
 	/* The idea for this optimization comes from stb_image by Sean Barret */
 	for (i = 0; i < (1u << ROOTBITS); i++) {
 		intxx v;
 		intxx a;
-		
+
 		table->sextent[i] = 0;
 		s = table->symbols[i];
 		if ((int16) s < 0) {
@@ -1935,16 +1935,16 @@ buildextenttable(struct TJPGACHmTable* table)
 		}
 		rs     = GETSYMBOL(s);
 		length = GETLENGTH(s);
-		
+
 		rrrr = (rs >> 4);
 		ssss = (rs >> 0) & 0x0f;
 		if (ssss == 0 || ((length + ssss) > ROOTBITS)) {
 			continue;
 		}
-		
+
 		/* additional bits */
 		a = ((i << length) & ((1l << ROOTBITS) - 1)) >> (ROOTBITS - ssss);
-		
+
 		v = extend(ssss, a);
 		if (v < -128 || v > 127) {
 			/* value is too large fo fit in 8 bits */
@@ -1974,7 +1974,7 @@ buildtable(struct TJPGHmTable* table, uintxx mode, uint8* lns, uint8* symbols)
 	for (i = m = 0; i < 16; i++) {
 		j = (j << 1) - lns[i];
 		if (j < 0) {
-			
+
 			return 0;
 		}
 		m += lns[i];
@@ -1982,7 +1982,7 @@ buildtable(struct TJPGHmTable* table, uintxx mode, uint8* lns, uint8* symbols)
 		codes[i] = c;
 		c = (c + lns[i]) << 1;
 	}
-	
+
 	/* check symbols range 0-15 for DC tables */
 	if ((mode & 0x01) == 0) {
 		for (i = 0; i < m; i++) {
@@ -1995,35 +1995,35 @@ buildtable(struct TJPGHmTable* table, uintxx mode, uint8* lns, uint8* symbols)
 	else {
 		v = ENOUGH_AC;
 	}
-	
+
 	/* reset the main entries in the table */
 	for (i = 0; i < 1l << ROOTBITS; i++) {
 		table->symbols[i] = 0;
 	}
-	
-	/* mark secondary tables as secondary and set the offsets */	
+
+	/* mark secondary tables as secondary and set the offsets */
 	offset = 1u << ROOTBITS;
 	for (i = 16; i > ROOTBITS; i--) {
 		count = lns[i - 1];
 		if (count == 0) {
 			continue;
 		}
-		
+
 		r = i - ROOTBITS;
 		c = codes[i - 1] >> r;
-		
+
 		j = count >> r;
 		if (count & ((1u << r) - 1))
 			j++;
-		
+
 		for (m = 0; m < j; m++) {
 			uintxx entry;
 			k = c + m;
-			
+
 			if (table->symbols[k]) {
 				continue;
 			}
-			
+
 			/* Store the shift needed to get the lower bits of the code
 			 * in a 16bit word, for subtables we need to mask the top bits and
 			 * shift rigth using this value.
@@ -2035,38 +2035,38 @@ buildtable(struct TJPGHmTable* table, uintxx mode, uint8* lns, uint8* symbols)
 			offset += ((uintxx) 1) << r;
 		}
 	}
-	
+
 	if (offset > v) {
 		/* should not happen */
 		return 0;
 	}
-	
+
 	/* populate the table */
 	m = 0;
 	for (j = 0; j < 16; j++) {
 		uint16 e;
-		
+
 		count = lns[j];
 		if (count == 0) {
 			continue;
 		}
-		
+
 		for (v = 0; v < count; v++) {
 			e = (uint16) ((((uint16) (symbols[m++])) << LENGTHBITS) | (j + 1));
-			
+
 			k = 0;
 			if ((j + 1) > ROOTBITS) {
 				uint16 entry;
-				
+
 				r = (j + 1) - ROOTBITS;
 				c = codes[j] >> r;
-				
+
 				entry = table->symbols[c];
 				c = codes[j] & ((1u << r) - 1);
-				
+
 				r = ((16 - ROOTBITS) - GETLENGTH(entry)) - r;
 				c = c << r;
-				
+
 				/* offset */
 				k = GETSYMBOL(entry & ((1u << 15) - 1));
 			}
@@ -2074,14 +2074,14 @@ buildtable(struct TJPGHmTable* table, uintxx mode, uint8* lns, uint8* symbols)
 				r = ROOTBITS - (j + 1);
 				c = codes[j] << r;
 			}
-			
+
 			for (i = (1u << r) - 1; i >= 0; i--) {
 				table->symbols[k + (c | i)] = e;
 			}
 			codes[j]++;
 		}
 	}
-	
+
 	if ((mode >> 1) != 0) {
 		buildextenttable((void*) table);
 	}
@@ -2089,7 +2089,7 @@ buildtable(struct TJPGHmTable* table, uintxx mode, uint8* lns, uint8* symbols)
 }
 
 
-/* 
+/*
  * BIT reading functions */
 
 #define BUFFERBYTES (BPREFETCHBZ * sizeof(PRVT->bb[0]))
@@ -2102,7 +2102,7 @@ fecthbits(struct TJPGRPblc* jpgr)
 	uintxx r;
 	uintxx index;
 	uintxx buffer;
-	
+
 	PRVT->bindex = 0;
 	if (UNLIKELY(PRVT->bend)) {
 		if (PRVT->bend == 1) {
@@ -2113,7 +2113,7 @@ fecthbits(struct TJPGRPblc* jpgr)
 		}
 		return;
 	}
-	
+
 	index = 0;
 	if (LIKELY(((uintxx) (PRVT->end - PRVT->bgn)) >= BUFFERBYTES)) {
 		for (; index < BPREFETCHBZ; PRVT->bgn += 2) {
@@ -2125,14 +2125,14 @@ fecthbits(struct TJPGRPblc* jpgr)
 				PRVT->bbcread += (index << 1) << 3;
 				goto L_SLOW;
 			}
-			
+
 			PRVT->bb[index++] = (PRVT->bgn[0] << 8) | PRVT->bgn[1];
 		}
-		
+
 		PRVT->bbcread += BUFFERBYTES << 3;
 		return;
 	}
-		
+
 L_SLOW:
 	j = 0;
 	s = 0;
@@ -2141,7 +2141,7 @@ L_SLOW:
 	for (; index < BPREFETCHBZ;) {
 		uintxx m;
 		uintxx v;
-		
+
 		v = PRVT->end - PRVT->bgn;
 		if (LIKELY(v > 1)) {
 			m = PRVT->bgn[0];
@@ -2165,7 +2165,7 @@ L_SLOW:
 				continue;
 			}
 		}
-		
+
 		if (UNLIKELY(m == 0xff)) {
 			if (PRVT->bgn[1]) {
 				m = 0;
@@ -2184,7 +2184,7 @@ L_SLOW:
 				r++;
 			}
 		}
-		
+
 		buffer = m | (buffer << 8);
 		j += 8;
 		if (j == 16) {
@@ -2192,7 +2192,7 @@ L_SLOW:
 			j = buffer = 0;
 		}
 	}
-	
+
 	PRVT->bbcread += r << 3;
 }
 
@@ -2204,7 +2204,7 @@ initbitmode(struct TJPGRPblc* jpgr)
 {
 	PRVT->bbuffer = 0;
 	PRVT->bbcount = 0;
-	
+
 	PRVT->bbcread = 0;
 	PRVT->bend = 0;
 	fecthbits(jpgr);
@@ -2257,11 +2257,11 @@ decodesymbol(struct TJPGACHmTable* table, uintxx bits)
 	int16 s;
 
 	s = (uint16) table->symbols[bits >> (16 - ROOTBITS)];
-	
+
 	if (UNLIKELY((int16) s < 0)) {
 		uintxx offset;
 		uintxx extra;
-		
+
 		offset = GETSYMBOL(s & ((1u << 15) - 1));
 		extra  = GETLENGTH(s);
 		s = table->symbols[offset + ((bits & ROOTMASK) >> extra)];
@@ -2280,16 +2280,16 @@ fillbbuffer(struct TJPGRPblc* jpgr, BBTYPE bb)
 	if (UNLIKELY(PRVT->bindex >= BPREFETCHBZ))
 		fecthbits(jpgr);
 	bb = (bb << 16) | PRVT->bb[PRVT->bindex++];
-	
+
 	if (UNLIKELY(PRVT->bindex >= BPREFETCHBZ))
 		fecthbits(jpgr);
 	bb = (bb << 16) | PRVT->bb[PRVT->bindex++];
 #endif
-	
+
 	if (UNLIKELY(PRVT->bindex >= BPREFETCHBZ))
 		fecthbits(jpgr);
 	bb = (bb << 16) | PRVT->bb[PRVT->bindex++];
-	
+
 	return bb;
 }
 
@@ -2348,19 +2348,19 @@ decodeblock(struct TJPGRPblc* jpgr, struct TJPGComponent* c, int16* block)
 		bb = fillbbuffer(jpgr, bb);
 		bc += BBFILLBITS;
 	}
-	c->cofficient += extend(symbol, GETBITS(bb, bc, symbol));	
+	c->cofficient += extend(symbol, GETBITS(bb, bc, symbol));
 	block[0] = (int16) c->cofficient;
 
 	DROPBITS(bb, bc, symbol);
 	r += symbol;
-	
+
 	/* AC cofficients decoding */
 	for (i = 1; i < 64; i++) {
 		if (bc < 16) {
 			bb = fillbbuffer(jpgr, bb);
 			bc += BBFILLBITS;
 		}
-		
+
 		/* fast decoding for run-length + extended value */
 		s = ac->sextent[GETBITS(bb, bc, ROOTBITS)];
 		if (LIKELY(s != 0)) {
@@ -2374,7 +2374,7 @@ decodeblock(struct TJPGRPblc* jpgr, struct TJPGComponent* c, int16* block)
 			r += length;
 			continue;
 		}
-		
+
 		s = decodesymbol(ac, GETBITS(bb, bc, 16));
 		if (UNLIKELY(s == 0)) {
 			/* invalid code */
@@ -2390,12 +2390,12 @@ decodeblock(struct TJPGRPblc* jpgr, struct TJPGComponent* c, int16* block)
 		if (symbol == 0) {
 			break;
 		}
-		
+
 		if (symbol > 15) {
 			/* zero run-length */
 			i += symbol >> 4;
 			symbol = symbol & 0x0f;
-			
+
 			if (UNLIKELY(i >= 64)) {
 				if (bc < 16) {
 					bb = fillbbuffer(jpgr, bb);
@@ -2407,17 +2407,17 @@ decodeblock(struct TJPGRPblc* jpgr, struct TJPGComponent* c, int16* block)
 				break;
 			}
 		}
-		
+
 		if (bc < 16) {
 			bb = fillbbuffer(jpgr, bb);
 			bc += BBFILLBITS;
 		}
 		block[zzorder[i]] = (int16) extend(symbol, GETBITS(bb, bc, symbol));
-		
+
 		DROPBITS(bb, bc, symbol);
 		r += symbol;
 	}
-	
+
 	/* restore the state and check for bit overread */
 	PRVT->bbuffer = bb;
 	PRVT->bbcount = bc;
@@ -2498,25 +2498,25 @@ inverseDCT(int16* sblock, int16* rblock, int16* qtable)
 	int32 r[64];
 	int32* rr;
 	uintxx i;
-	
+
 #define y7 l4
 #define y5 l5
 #define y3 l6
 #define y1 l7
-	
+
 	rr = r;
 	for (i = 0; i < 8; i++) {
-	    l0 = sblock[0 * 8];
-	    l1 = sblock[4 * 8];
-	    l2 = sblock[2 * 8];
-	    l3 = sblock[6 * 8];
-	    l4 = sblock[7 * 8];  /* y7 */
-	    l5 = sblock[5 * 8];  /* y5 */
-	    l6 = sblock[3 * 8];  /* y3 */
-	    l7 = sblock[1 * 8];  /* y1 */
-	    
-	    if ((l1 | l2 | l3 | l4 | l5 | l6 | l7) == 0) {
-	    	l0 = (l0 * qtable[0]) << 1;
+		l0 = sblock[0 * 8];
+		l1 = sblock[4 * 8];
+		l2 = sblock[2 * 8];
+		l3 = sblock[6 * 8];
+		l4 = sblock[7 * 8];  /* y7 */
+		l5 = sblock[5 * 8];  /* y5 */
+		l6 = sblock[3 * 8];  /* y3 */
+		l7 = sblock[1 * 8];  /* y1 */
+
+		if ((l1 | l2 | l3 | l4 | l5 | l6 | l7) == 0) {
+			l0 = (l0 * qtable[0]) << 1;
 			rr[0] = l0;
 			rr[1] = l0;
 			rr[2] = l0;
@@ -2525,157 +2525,157 @@ inverseDCT(int16* sblock, int16* rblock, int16* qtable)
 			rr[5] = l0;
 			rr[6] = l0;
 			rr[7] = l0;
-		    qtable++;
-		    sblock++;
-		    rr += 8;
-		    continue;
-	    }
-	    
-	    /* dequantize */
-	    l0 *= qtable[0 * 8];
-	    l1 *= qtable[4 * 8];
-	    l2 *= qtable[2 * 8];
-	    l3 *= qtable[6 * 8];
-	    l4 *= qtable[7 * 8];
-	    l5 *= qtable[5 * 8];
-	    l6 *= qtable[3 * 8];
-	    l7 *= qtable[1 * 8];
-	    
-	    /* 
-	     * even part */
-	    
-	    /* stage 3 */
-	    z0 = (l0 + l1) << 13;
-	    z1 = (l0 - l1) << 13;
-	    
-	    l0 = z0;
-	    l1 = z1;
-	    
-	    /*
-	    first rotation:
-	    same as:
-	    z2 = l2 * -(C6xSQRT2) + l3 * (S6xSQRT2);
-	    z3 = l2 *  (S6xSQRT2) + l3 * (C6xSQRT2); */
-	    z5 = S6xSQRT2 * (l2 + l3);
-	    z2 = l2 * -(S6xSQRT2 + C6xSQRT2) + z5;
-	    z3 = l3 *  (C6xSQRT2 - S6xSQRT2) + z5;
-	    
-	    /* stage 2 */
-	    l0 = z3 + z0;
-	    l1 = z1 - z2;
-	    l2 = z2 + z1;
-	    l3 = z0 - z3;
-	    
-	    /*
-	     * odd part */
-	    
-	    /* alternative implementation for the odd part, using one
-	     * multiplication per path as descrived in figure 8 */
-	    z1 = y7 + y1;
-	    z2 = y5 + y3;
-	    z3 = y7 + y3;
-	    z4 = y5 + y1;
-	    z5 = z3 + z4;
-	    
-	    y7 *= A;
-	    y5 *= B;
-	    y3 *= C;
-	    y1 *= D;
-	    z1 *= E;
-	    z2 *= F;
-	    z3 *= G;
-	    z4 *= H;
-	    z5 *= I;
-	        
-	    z4 += z5;
-	    z3 += z5;
-	        
-	    y1 += z1 + z4;
-	    y3 += z2 + z3;
-	    y5 += z2 + z4;
-	    y7 += z1 + z3;
-	    
-	    /* last stage */
-	    /* keep 1 bit of precision, plus 3 (scaled by 8) */
-	    rr[0] = ((l0 + l7) + 2048) >> 12;
-	    rr[7] = ((l0 - l7) + 2048) >> 12;
-	    rr[1] = ((l1 + l6) + 2048) >> 12;
-	    rr[6] = ((l1 - l6) + 2048) >> 12;
-	    rr[2] = ((l2 + l5) + 2048) >> 12;
-	    rr[5] = ((l2 - l5) + 2048) >> 12;
-	    rr[3] = ((l3 + l4) + 2048) >> 12;
-	    rr[4] = ((l3 - l4) + 2048) >> 12;
-	    qtable++;
-	    sblock++;
-	    rr += 8;
+			qtable++;
+			sblock++;
+			rr += 8;
+			continue;
+		}
+
+		/* dequantize */
+		l0 *= qtable[0 * 8];
+		l1 *= qtable[4 * 8];
+		l2 *= qtable[2 * 8];
+		l3 *= qtable[6 * 8];
+		l4 *= qtable[7 * 8];
+		l5 *= qtable[5 * 8];
+		l6 *= qtable[3 * 8];
+		l7 *= qtable[1 * 8];
+
+		/*
+		* even part */
+
+		/* stage 3 */
+		z0 = (l0 + l1) << 13;
+		z1 = (l0 - l1) << 13;
+
+		l0 = z0;
+		l1 = z1;
+
+		/*
+		first rotation:
+		same as:
+		z2 = l2 * -(C6xSQRT2) + l3 * (S6xSQRT2);
+		z3 = l2 *  (S6xSQRT2) + l3 * (C6xSQRT2); */
+		z5 = S6xSQRT2 * (l2 + l3);
+		z2 = l2 * -(S6xSQRT2 + C6xSQRT2) + z5;
+		z3 = l3 *  (C6xSQRT2 - S6xSQRT2) + z5;
+
+		/* stage 2 */
+		l0 = z3 + z0;
+		l1 = z1 - z2;
+		l2 = z2 + z1;
+		l3 = z0 - z3;
+
+		/*
+		 * odd part */
+
+		/* alternative implementation for the odd part, using one
+		 * multiplication per path as descrived in figure 8 */
+		z1 = y7 + y1;
+		z2 = y5 + y3;
+		z3 = y7 + y3;
+		z4 = y5 + y1;
+		z5 = z3 + z4;
+
+		y7 *= A;
+		y5 *= B;
+		y3 *= C;
+		y1 *= D;
+		z1 *= E;
+		z2 *= F;
+		z3 *= G;
+		z4 *= H;
+		z5 *= I;
+
+		z4 += z5;
+		z3 += z5;
+
+		y1 += z1 + z4;
+		y3 += z2 + z3;
+		y5 += z2 + z4;
+		y7 += z1 + z3;
+
+		/* last stage */
+		/* keep 1 bit of precision, plus 3 (scaled by 8) */
+		rr[0] = ((l0 + l7) + 2048) >> 12;
+		rr[7] = ((l0 - l7) + 2048) >> 12;
+		rr[1] = ((l1 + l6) + 2048) >> 12;
+		rr[6] = ((l1 - l6) + 2048) >> 12;
+		rr[2] = ((l2 + l5) + 2048) >> 12;
+		rr[5] = ((l2 - l5) + 2048) >> 12;
+		rr[3] = ((l3 + l4) + 2048) >> 12;
+		rr[4] = ((l3 - l4) + 2048) >> 12;
+		qtable++;
+		sblock++;
+		rr += 8;
 	}
-	
+
 	rr = r;
 	for (i = 0; i < 8; i++) {
-	    /* even part */
-	    l0 = rr[0 * 8];
-	    l1 = rr[4 * 8];
-	    l2 = rr[2 * 8];
-	    l3 = rr[6 * 8];
-	    l4 = rr[7 * 8]; /* y7 */
-	    l5 = rr[5 * 8]; /* y5 */
-	    l6 = rr[3 * 8]; /* y3 */
-	    l7 = rr[1 * 8]; /* y1 */
-	    
-	    /* stage 3 */
-	    z0 = (l0 + l1) << 13;
-	    z1 = (l0 - l1) << 13;
-	    
-	    z5 = S6xSQRT2 * (l2 + l3);
-	    z2 = l2 * -(S6xSQRT2 + C6xSQRT2) + z5;
-	    z3 = l3 *  (C6xSQRT2 - S6xSQRT2) + z5;
-	    
-	    /* stage 2 */
-	    l0 = z3 + z0;
-	    l1 = z1 - z2;
-	    l2 = z2 + z1;
-	    l3 = z0 - z3;
-	    
-	    /* odd part */
-	    z1 = y7 + y1;
-	    z2 = y5 + y3;
-	    z3 = y7 + y3;
-	    z4 = y5 + y1;
-	    z5 = z3 + z4;
-	        
-	    y7 *= A;
-	    y5 *= B;
-	    y3 *= C;
-	    y1 *= D;
-	    z1 *= E;
-	    z2 *= F;
-	    z3 *= G;
-	    z4 *= H;
-	    z5 *= I;
-	        
-	    z4 += z5;
-	    z3 += z5;
-	    
-	    y1 += z1 + z4;
-	    y3 += z2 + z3;
-	    y5 += z2 + z4;
-	    y7 += z1 + z3;
-	    
-	    /* last stage */
-	    /* 13 bits +
-	     *  4 bits (1 bit preview pass + 3 current pass) */
-	    rblock[0 * 8] = ((l0 + l7) + 65536) >> 17;
-	    rblock[7 * 8] = ((l0 - l7) + 65536) >> 17;
-	    rblock[1 * 8] = ((l1 + l6) + 65536) >> 17;
-	    rblock[6 * 8] = ((l1 - l6) + 65536) >> 17;
-	    rblock[2 * 8] = ((l2 + l5) + 65536) >> 17;
-	    rblock[5 * 8] = ((l2 - l5) + 65536) >> 17;
-	    rblock[3 * 8] = ((l3 + l4) + 65536) >> 17;
-	    rblock[4 * 8] = ((l3 - l4) + 65536) >> 17;
-	    rr++;
-	    rblock++;
+		/* even part */
+		l0 = rr[0 * 8];
+		l1 = rr[4 * 8];
+		l2 = rr[2 * 8];
+		l3 = rr[6 * 8];
+		l4 = rr[7 * 8]; /* y7 */
+		l5 = rr[5 * 8]; /* y5 */
+		l6 = rr[3 * 8]; /* y3 */
+		l7 = rr[1 * 8]; /* y1 */
+
+		/* stage 3 */
+		z0 = (l0 + l1) << 13;
+		z1 = (l0 - l1) << 13;
+
+		z5 = S6xSQRT2 * (l2 + l3);
+		z2 = l2 * -(S6xSQRT2 + C6xSQRT2) + z5;
+		z3 = l3 *  (C6xSQRT2 - S6xSQRT2) + z5;
+
+		/* stage 2 */
+		l0 = z3 + z0;
+		l1 = z1 - z2;
+		l2 = z2 + z1;
+		l3 = z0 - z3;
+
+		/* odd part */
+		z1 = y7 + y1;
+		z2 = y5 + y3;
+		z3 = y7 + y3;
+		z4 = y5 + y1;
+		z5 = z3 + z4;
+
+		y7 *= A;
+		y5 *= B;
+		y3 *= C;
+		y1 *= D;
+		z1 *= E;
+		z2 *= F;
+		z3 *= G;
+		z4 *= H;
+		z5 *= I;
+
+		z4 += z5;
+		z3 += z5;
+
+		y1 += z1 + z4;
+		y3 += z2 + z3;
+		y5 += z2 + z4;
+		y7 += z1 + z3;
+
+		/* last stage */
+		/* 13 bits +
+		 *  4 bits (1 bit preview pass + 3 current pass) */
+		rblock[0 * 8] = ((l0 + l7) + 65536) >> 17;
+		rblock[7 * 8] = ((l0 - l7) + 65536) >> 17;
+		rblock[1 * 8] = ((l1 + l6) + 65536) >> 17;
+		rblock[6 * 8] = ((l1 - l6) + 65536) >> 17;
+		rblock[2 * 8] = ((l2 + l5) + 65536) >> 17;
+		rblock[5 * 8] = ((l2 - l5) + 65536) >> 17;
+		rblock[3 * 8] = ((l3 + l4) + 65536) >> 17;
+		rblock[4 * 8] = ((l3 - l4) + 65536) >> 17;
+		rr++;
+		rblock++;
 	}
-	
+
 #undef y7
 #undef y5
 #undef y3
@@ -2686,7 +2686,7 @@ inverseDCT(int16* sblock, int16* rblock, int16* qtable)
 
 /*
  * We use the formula from the specification (CCIR 601 (256 levels)).
- * 
+ *
  * r = y + 1.402   * (cr - 128)
  * g = y - 0.34414 * (cb - 128) - 0.71414 * (cr - 128)
  * b = y + 1.772   * (cb - 128) */
@@ -2716,8 +2716,8 @@ toRGB(int16 y, int16 cb, int16 cr, uintxx transform)
 		r = cr *  FIXED_1_402;
 		g = cb * -FIXED_0_344 + cr * -FIXED_0_714;
 		b = cb *  FIXED_1_772;
-		
-		/* + 0.5 + 128 */		
+
+		/* + 0.5 + 128 */
 		m = (y << 12) + 2048 + 524228;
 		r = (m + r) >> 12;
 		g = (m + g) >> 12;
@@ -2780,20 +2780,20 @@ setrow3(int16* r1, int16* r2, int16* r3, uint8* row, uintxx transform)
 	int32 g;
 	int32 b;
 	intxx i;
-	
+
 	if (LIKELY(transform)) {
 		for (i = 0; i < 8; i++, row += 3) {
 			int32 m;
 			r = r3[i] *  FIXED_1_402;
 			g = r2[i] * -FIXED_0_344 + r3[i] * -FIXED_0_714;
 			b = r2[i] *  FIXED_1_772;
-			
-			/* + 0.5 + 128 */		
+
+			/* + 0.5 + 128 */
 			m = (r1[i] << 12) + 2048 + 524228;
 			r = (m + r) >> 12;
 			g = (m + g) >> 12;
 			b = (m + b) >> 12;
-			
+
 			if ((uint32) r > 255) {
 				if (r > 255)
 					r = 255;
@@ -2818,12 +2818,12 @@ setrow3(int16* r1, int16* r2, int16* r3, uint8* row, uintxx transform)
 		}
 		return;
 	}
-	
+
 	for (i = 0; i < 8; i++, row += 3) {
 		r = r1[i] + 128;
 		g = r2[i] + 128;
 		b = r3[i] + 128;
-	
+
 		if ((uint32) r > 255) {
 			if (r > 255)
 				r = 255;
@@ -2844,7 +2844,7 @@ setrow3(int16* r1, int16* r2, int16* r3, uint8* row, uintxx transform)
 		}
 		row[0] = r;
 		row[1] = g;
-		row[2] = b;	
+		row[2] = b;
 	}
 }
 
@@ -2892,10 +2892,10 @@ setpixels1(struct TJPGRPblc* jpgr, uintxx y, uintxx x)
 	const uintxx svalue[] = {
 		0, 3, 4, 0, 5
 	};
-	
+
 	c1 = PRVT->components + 0;
 	r1 = c1->srow;
-	
+
 	sy = svalue[PRVT->ysampling];
 	sx = svalue[PRVT->xsampling];
 	for (i = 0; i < PRVT->nunits; i++) {
@@ -2903,11 +2903,11 @@ setpixels1(struct TJPGRPblc* jpgr, uintxx y, uintxx x)
 		uintxx col;
 		uintxx d1;
 		uintxx i1;
-		
+
 		d1 = c1->offset[i];
 		i1 = c1->iblock[i];
 		u1 = c1->units[i1];
-		
+
 		row = (y << sy) + PRVT->originy[i];
 		for (s = 0; s < 64; s += 8) {
 			uintxx o;
@@ -2915,7 +2915,7 @@ setpixels1(struct TJPGRPblc* jpgr, uintxx y, uintxx x)
 			if (UNLIKELY(row >= jpgr->sizey)) {
 				break;
 			}
-				
+
 			col = (x << sx) + PRVT->originx[i];
 			if (col + 8 <= jpgr->sizex) {
 				o = (row * jpgr->sizex) + col;
@@ -2934,20 +2934,20 @@ setpixels1(struct TJPGRPblc* jpgr, uintxx y, uintxx x)
 					row++;
 					continue;
 				}
-					
+
 				setrow1(u1 + s, PRVT->pixels + o);
 				row++;
 				continue;
 			}
-			
+
 			for (stepx = 0; stepx < 8; stepx++) {
 				int16 a1;
 				uint8 r;
-					
+
 				if (col >= jpgr->sizex) {
 					break;
 				}
-				
+
 				if (PRVT->issubsampled) {
 					a1 = u1[c1->umap[s++] + d1];
 				}
@@ -2985,7 +2985,7 @@ setpixels3ns(struct TJPGRPblc* jpgr, uintxx y, uintxx x)
 	const uintxx svalue[] = {
 		0, 3, 4, 0, 5
 	};
-	
+
 	torgb = 1;
 	if (PRVT->isrgb == 1 || PRVT->keepyuv == 1)
 		torgb = 0;
@@ -2994,7 +2994,7 @@ setpixels3ns(struct TJPGRPblc* jpgr, uintxx y, uintxx x)
 	c1 = PRVT->components + 0;
 	c2 = PRVT->components + 1;
 	c3 = PRVT->components + 2;
-	
+
 	y8 = svalue[PRVT->ysampling];
 	x8 = svalue[PRVT->xsampling];
 	u1 = c1->units[0];
@@ -3003,15 +3003,15 @@ setpixels3ns(struct TJPGRPblc* jpgr, uintxx y, uintxx x)
 	for (i = 0; i < PRVT->nunits; i++) {
 		uintxx row;
 		uintxx col;
-		
+
 		row = ((y << y8) + PRVT->originy[i]) * jpgr->sizex;
 		for (s = 0; s < 64; s += 8) {
 			uintxx o;
-			
+
 			if (UNLIKELY(row >= limit)) {
 				break;
 			}
-			
+
 			col = (x << x8) + PRVT->originx[i];
 			if (LIKELY(col + 8 < jpgr->sizex)) {
 				o = (row + col) * 3;
@@ -3019,14 +3019,14 @@ setpixels3ns(struct TJPGRPblc* jpgr, uintxx y, uintxx x)
 				row += jpgr->sizex;
 				continue;
 			}
-			
+
 			o = (row + col) * 3;
 			for (stepx = 0; stepx < 8; stepx++) {
 				int16 a1;
 				int16 a2;
 				int16 a3;
 				struct TJPGRGB r;
-				
+
 				if (UNLIKELY(col >= jpgr->sizex)) {
 					break;
 				}
@@ -3034,15 +3034,15 @@ setpixels3ns(struct TJPGRPblc* jpgr, uintxx y, uintxx x)
 				a2 = u2[s + stepx];
 				a3 = u3[s + stepx];
 				r = toRGB(a1, a2, a3, torgb);
-				
+
 				PRVT->pixels[o + 0] = r.r;
 				PRVT->pixels[o + 1] = r.g;
 				PRVT->pixels[o + 2] = r.b;
 				o += 3;
-				
+
 				col++;
 			}
-			
+
 			row += jpgr->sizex;
 		}
 	}
@@ -3124,7 +3124,7 @@ setpixels3ss(struct TJPGRPblc* jpgr, uintxx y, uintxx x)
 				else {
 					row1 = u1 + c1->umap[s] + d1;
 				}
-				
+
 				if (c2->rumode[i]) {
 					r2[0] = u2[c2->umap[s + 0] + d2];
 					r2[1] = u2[c2->umap[s + 1] + d2];
@@ -3154,18 +3154,18 @@ setpixels3ss(struct TJPGRPblc* jpgr, uintxx y, uintxx x)
 				else {
 					row3 = u3 + c3->umap[s] + d3;
 				}
-				
+
 				setrow3(row1, row2, row3, PRVT->pixels + o, torgb);
 				row++;
 				continue;
 			}
-			
+
 			for (stepx = 0; stepx < 8; stepx++) {
 				int16 a1;
 				int16 a2;
 				int16 a3;
 				struct TJPGRGB r;
-				
+
 				if (UNLIKELY(col >= jpgr->sizex)) {
 					break;
 				}
@@ -3173,7 +3173,7 @@ setpixels3ss(struct TJPGRPblc* jpgr, uintxx y, uintxx x)
 				a2 = u2[c2->umap[s + stepx] + d2];
 				a3 = u3[c3->umap[s + stepx] + d3];
 				r = toRGB(a1, a2, a3, torgb);
-				
+
 				o = (row * jpgr->sizex) + col;
 				PRVT->pixels[(o * 3) + 0] = r.r;
 				PRVT->pixels[(o * 3) + 1] = r.g;
@@ -3190,7 +3190,7 @@ checkinterval(struct TJPGRPblc* jpgr)
 {
 	uintxx i;
 	uint16 m;
-	
+
 	if (overread(jpgr) == 1) {
 		return 0;
 	}
@@ -3201,7 +3201,7 @@ checkinterval(struct TJPGRPblc* jpgr)
 	}
 	for (i = 0; i < PRVT->ncomponents; i++) {
 		struct TJPGComponent* c;
-		
+
 		c = PRVT->components + i;
 		c->cofficient = 0;
 	}
@@ -3246,19 +3246,19 @@ decodebaseline(struct TJPGRPblc* jpgr)
 		}
 		return 1;
 	}
-	
+
 	setpixels = setpixels1;
 	if (PRVT->ncomponents == 3) {
 		setpixels = setpixels3ss;
 		if (PRVT->issubsampled == 0)
 			setpixels = setpixels3ns;
 	}
-	
+
 	if (setpixels == setpixels3ns) {
 		struct TJPGComponent* c1;
 		struct TJPGComponent* c2;
 		struct TJPGComponent* c3;
-		
+
 		c1 = PRVT->components + PRVT->corder[0];
 		c2 = PRVT->components + PRVT->corder[1];
 		c3 = PRVT->components + PRVT->corder[2];
@@ -3274,7 +3274,7 @@ decodebaseline(struct TJPGRPblc* jpgr)
 					}
 					interval -= 1;
 				}
-				
+
 				if (UNLIKELY(decodeblock(jpgr, c1, c1->units[0]) == 0)) {
 					return 0;
 				}
@@ -3294,7 +3294,7 @@ decodebaseline(struct TJPGRPblc* jpgr)
 		}
 		return 1;
 	}
-	
+
 	for (y = 0; y < PRVT->nrows; y++) {
 		for (x = 0; x < PRVT->ncols; x++) {
 			if (PRVT->rinterval) {
@@ -3311,7 +3311,7 @@ decodebaseline(struct TJPGRPblc* jpgr)
 			for (i = 0; i < PRVT->ncomponents; i++) {
 				uintxx j;
 				struct TJPGComponent* c;
-				
+
 				c = PRVT->components + PRVT->corder[i];
 				for (j = 0; j < c->ucount; j++) {
 					if (UNLIKELY(decodeblock(jpgr, c, c->units[j]) == 0)) {
@@ -3337,7 +3337,7 @@ decodefirstDC(struct TJPGRPblc* jpgr, struct TJPGComponent* c, uintxx index)
 
 	block = c->scan + (index << 6);
 	memset(block, 0, 64 * sizeof(block[0]));
-	
+
 	ensurebits(jpgr, 16);
 	s = decodesymbol((void*) c->dctable, getbits(jpgr, 16));
 	if (UNLIKELY(s == 0)) {
@@ -3346,7 +3346,7 @@ decodefirstDC(struct TJPGRPblc* jpgr, struct TJPGComponent* c, uintxx index)
 	}
 	dropbits(jpgr, GETLENGTH(s));
 	s = GETSYMBOL(s);
-	
+
 	ensurebits(jpgr, 16);
 	c->cofficient += extend(s, getbits(jpgr, s));
 	dropbits(jpgr, s);
@@ -3366,20 +3366,20 @@ readfirstDC(struct TJPGRPblc* jpgr)
 	uintxx interval;
 	uintxx sc;
 	struct TJPGComponent* c;
-	
+
 	initbitmode(jpgr);
 	interval = PRVT->rinterval;
-	
+
 	sc = PRVT->nscancomponents == 1;
 	totaly = PRVT->nrows;
 	totalx = PRVT->ncols;
-	
+
 	c = PRVT->components + PRVT->scancomponent;
 	if (sc) {
 		totaly = c->nrows;
 		totalx = c->ncols;
 	}
-	
+
 	for (y = 0; y < totaly; y++) {
 		for (x = 0; x < totalx; x++) {
 			if (PRVT->rinterval) {
@@ -3392,27 +3392,27 @@ readfirstDC(struct TJPGRPblc* jpgr)
 				}
 				interval -= 1;
 			}
-			
+
 			if (sc) {
 				if (decodefirstDC(jpgr, c, (y * totalx) + x) == 0) {
 					return 0;
 				}
 				continue;
 			}
-			
+
 			for (i = 0; i < PRVT->ncomponents; i++) {
 				uintxx y2;
 				uintxx x2;
 				uintxx y1;
 				uintxx x1;
-				
+
 				c = PRVT->components + PRVT->corder[i];
-				
+
 				y1 = y * c->ysampling;
 				x1 = x * c->xsampling;
 				for (y2 = 0; y2 < c->ysampling; y2++) {
 					uintxx offsety;
-					
+
 					offsety = (y1 + y2) * c->icols;
 					for (x2 = 0; x2 < c->xsampling; x2++) {
 						if (decodefirstDC(jpgr, c, offsety + x1 + x2) == 0) {
@@ -3442,20 +3442,20 @@ refineDC(struct TJPGRPblc* jpgr)
 	uintxx sc;
 	struct TJPGComponent* c;
 	int16* block;
-	
+
 	initbitmode(jpgr);
 	interval = PRVT->rinterval;
-	
+
 	sc = PRVT->nscancomponents == 1;
 	totaly = PRVT->nrows;
 	totalx = PRVT->ncols;
-	
+
 	c = PRVT->components + PRVT->scancomponent;
 	if (sc) {
 		totaly = c->nrows;
 		totalx = c->ncols;
 	}
-	
+
 	for (y = 0; y < totaly; y++) {
 		for (x = 0; x < totalx; x++) {
 			if (PRVT->rinterval) {
@@ -3468,7 +3468,7 @@ refineDC(struct TJPGRPblc* jpgr)
 				}
 				interval -= 1;
 			}
-			
+
 			if (sc) {
 				block = c->scan + (((y * c->icols) + x) << 6);
 				ensurebits(jpgr, 1);
@@ -3476,24 +3476,24 @@ refineDC(struct TJPGRPblc* jpgr)
 				dropbits(jpgr, 1);
 				continue;
 			}
-			
+
 			for (i = 0; i < PRVT->ncomponents; i++) {
 				uintxx y2;
 				uintxx x2;
 				uintxx y1;
 				uintxx x1;
-				
+
 				c = PRVT->components + PRVT->corder[i];
-				
+
 				y1 = y * c->ysampling;
 				x1 = x * c->xsampling;
 				for (y2 = 0; y2 < c->ysampling; y2++) {
 					uintxx offsety;
-					
+
 					offsety = (y1 + y2) * c->icols;
 					for (x2 = 0; x2 < c->xsampling; x2++) {
 						block = c->scan + ((offsety + x1 + x2) << 6);
-						
+
 						ensurebits(jpgr, 1);
 						block[0] |= (int16) (getbits(jpgr, 1) << PRVT->al);
 						dropbits(jpgr, 1);
@@ -3505,7 +3505,7 @@ refineDC(struct TJPGRPblc* jpgr)
 			return 0;
 		}
 	}
-	
+
 	return 1;
 }
 
@@ -3517,19 +3517,19 @@ decodefirstAC(struct TJPGRPblc* jpgr, struct TJPGComponent* c, uintxx index)
 	int16  s;
 	int16* block;
 	struct TJPGACHmTable* ac;
-	
+
 	ac = c->actable;
 	if (PRVT->eobrun > 0) {
 		PRVT->eobrun -= 1;
 		return 1;
 	}
-	
+
 	block = c->scan + (index << 6);
 	i = PRVT->ss;
 	while (i <= PRVT->se) {
 		uintxx a;
 		uintxx b;
-		
+
 		ensurebits(jpgr, 16);
 		s = decodesymbol((void*) ac, getbits(jpgr, 16));
 		if (UNLIKELY(s == 0)) {
@@ -3538,7 +3538,7 @@ decodefirstAC(struct TJPGRPblc* jpgr, struct TJPGComponent* c, uintxx index)
 		}
 		symbol = GETSYMBOL(s);
 		dropbits(jpgr, GETLENGTH(s));
-		
+
 		a = (symbol >> 0) & 0x0f;
 		b = (symbol >> 4);
 		if (a == 0) {
@@ -3580,10 +3580,10 @@ readfirstAC(struct TJPGRPblc* jpgr)
 	uintxx x;
 	uintxx interval;
 	struct TJPGComponent* c;
-	
+
 	initbitmode(jpgr);
 	interval = PRVT->rinterval;
-	
+
 	c = PRVT->components + PRVT->scancomponent;
 	PRVT->eobrun = 0;
 	for (y = 0; y < c->nrows; y++) {
@@ -3598,7 +3598,7 @@ readfirstAC(struct TJPGRPblc* jpgr)
 				}
 				interval -= 1;
 			}
-			
+
 			if (decodefirstAC(jpgr, c, (y * c->icols) + x) == 0) {
 				return 0;
 			}
@@ -3635,10 +3635,10 @@ decoderefineAC(struct TJPGRPblc* jpgr, struct TJPGComponent* c, uintxx index)
 	int16* block;
 	struct TJPGACHmTable* ac;
 	int16 s;
-	
+
 	ac = c->actable;
 	block = c->scan + (index << 6);
-	
+
 	i = PRVT->ss;
 	if (PRVT->eobrun != 0) {
 		while (i <= PRVT->se) {
@@ -3652,12 +3652,12 @@ decoderefineAC(struct TJPGRPblc* jpgr, struct TJPGComponent* c, uintxx index)
 		PRVT->eobrun -= 1;
 		return 1;
 	}
-	
+
 	while (i <= PRVT->se) {
 		intxx a;
 		intxx b;
 		ensurebits(jpgr, 16);
-		
+
 		s = decodesymbol((void*) ac, getbits(jpgr, 16));
 		if (UNLIKELY(s == 0)) {
 			SETERROR(JPGR_EBADCODE);
@@ -3665,13 +3665,13 @@ decoderefineAC(struct TJPGRPblc* jpgr, struct TJPGComponent* c, uintxx index)
 		}
 		symbol = GETSYMBOL(s);
 		dropbits(jpgr, GETLENGTH(s));
-				
+
 		a = (symbol >> 0) & 0x0f;
 		b = (symbol >> 4);
-		
+
 		if (a == 1) {
 			intxx n;
-			
+
 			ensurebits(jpgr, 1);
 			n = extend(1, getbits(jpgr, 1)) << PRVT->al;
 			dropbits(jpgr, 1);
@@ -3696,7 +3696,7 @@ decoderefineAC(struct TJPGRPblc* jpgr, struct TJPGComponent* c, uintxx index)
 					ensurebits(jpgr, 16);
 					PRVT->eobrun = getbits(jpgr, b) + (((uintxx) 1) << b);
 					dropbits(jpgr, b);
-					
+
 					while (i <= PRVT->se) {
 						if (block[i] != 0) {
 							ensurebits(jpgr, 1);
@@ -3730,7 +3730,7 @@ decoderefineAC(struct TJPGRPblc* jpgr, struct TJPGComponent* c, uintxx index)
 			}
 		}
 	}
-	
+
 	PRVT->eobrun = 0;
 	return 1;
 }
@@ -3742,10 +3742,10 @@ refineAC(struct TJPGRPblc* jpgr)
 	uintxx x;
 	uintxx interval;
 	struct TJPGComponent* c;
-	
+
 	initbitmode(jpgr);
 	interval = PRVT->rinterval;
-	
+
 	c = PRVT->components + PRVT->scancomponent;
 	PRVT->eobrun = 0;
 	for (y = 0; y < c->nrows; y++) {
@@ -3760,7 +3760,7 @@ refineAC(struct TJPGRPblc* jpgr)
 				}
 				interval -= 1;
 			}
-			
+
 			if (decoderefineAC(jpgr, c, (y * c->icols) + x) == 0) {
 				return 0;
 			}
@@ -3802,15 +3802,15 @@ updateimg(struct TJPGRPblc* jpgr)
 				uintxx y1;
 				uintxx x1;
 				uintxx j;
-				
+
 				c = PRVT->components + i;
-				
+
 				y1 = y * c->ysampling;
 				x1 = x * c->xsampling;
 				j = 0;
 				for (y2 = 0; y2 < c->ysampling; y2++) {
 					uintxx offsety;
-					
+
 					offsety = (y1 + y2) * c->icols;
 					for (x2 = 0; x2 < c->xsampling; x2++) {
 						uintxx v;
@@ -3843,7 +3843,7 @@ jpgr_decodeimg(TJPGReader* jpgr)
 	uintxx r;
 	uintxx i;
 	ASSERT(jpgr);
-	
+
 	if (jpgr->state ^ 3) {
 		if (jpgr->state == 2) {
 			PBLC->state++;
@@ -3855,14 +3855,14 @@ jpgr_decodeimg(TJPGReader* jpgr)
 			goto L_ERROR;
 		}
 	}
-	
+
 	if (jpgr->isprogressive) {
 		while (jpgr_decodepass(jpgr, 0))
 			;
 		if (jpgr->error) {
 			return 0;
 		}
-				
+
 		updateimg(PBLC);
 		return 1;
 	}
@@ -3933,7 +3933,7 @@ jpgr_decodeimg(TJPGReader* jpgr)
 		updateimg(PBLC);
 		return 1;
 	}
-	
+
 	if (decodebaseline(PBLC)) {
 		if (parsesegments(PBLC) == 0) {
 			SETSTATE(5);
@@ -3953,7 +3953,7 @@ void
 jpgr_updateimg(TJPGReader* jpgr)
 {
 	ASSERT(jpgr);
-		
+
 	if (jpgr->isprogressive == 0) {
 		return;
 	}
@@ -3964,7 +3964,7 @@ jpgr_updateimg(TJPGReader* jpgr)
 			return;
 		}
 	}
-	
+
 	updateimg(PBLC);
 }
 
@@ -4020,7 +4020,7 @@ jpgr_decodepass(TJPGReader* jpgr, bool update)
 			SETERROR(JPGR_EINVALIDPASS);
 			goto L_ERROR;
 		}
-		
+
 		if (PRVT->ah == 0) {
 			if (readfirstAC(PBLC) == 0) {
 				goto L_ERROR;
@@ -4032,7 +4032,7 @@ jpgr_decodepass(TJPGReader* jpgr, bool update)
 			}
 		}
 	}
-	
+
 	if (update) {
 		updateimg(PBLC);
 	}

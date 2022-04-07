@@ -1,12 +1,12 @@
 /*
- * Copyright (C) 2021, jpn 
- * 
+ * Copyright (C) 2021, jpn
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -17,7 +17,7 @@
 #ifndef f29e6c7b_7a64_42d3_ba69_97933a01d8db
 #define f29e6c7b_7a64_42d3_ba69_97933a01d8db
 
-/* 
+/*
  * pngreader.h
  * An small PNG image loader.
  *
@@ -81,7 +81,7 @@ struct TPNGRPblc {
 	/* image size */
 	uint32 sizex;
 	uint32 sizey;
-	
+
 	uintxx colortype;
 	uintxx depth;
 
@@ -99,25 +99,25 @@ struct TPNGRPblc {
 	/* RGBA color palette */
 	uintxx palettesize;
 	uint8  palette[1024];
-	
+
 	/* transparency color key */
 	uint16 alpha[3];       /* alpha key RGB or grayscale */
-	
+
 	/* background color */
 	uint16 background[3];  /* RGB or grayscale */
-	
+
 	/* significant bits grayscale+alpha or RGB+alpha (in the same order) */
 	uint8 sbits[4];
 
 	/* color management */
 	float32 gamma;
-	
+
 	/* primary chromaticities and white point */
 	float32 wpointx;
 	float32 wpointy;
 	float32 chromax[3];    /* RGB */
 	float32 chromay[3];    /* RGB */
-	
+
 	/* sRGB */
 	uintxx srgbintent;
 
@@ -152,7 +152,7 @@ void pngr_reset(TPNGReader*);
  * Sets the input function. */
 void pngr_setinputfn(TPNGReader*, TIMGInputFn fn, void* user);
 
-/* 
+/*
  * Init the decoder and determines the required internal memory nedeed
  * to decode the image. */
 uintxx pngr_initdecoder(TPNGReader*, TImageInfo* info);
@@ -245,12 +245,12 @@ CTB_INLINE ePNGRState
 pngr_getstate(TPNGReader* pngr, uintxx* error, uintxx* wrnns)
 {
 	ASSERT(pngr);
-	
+
 	if (wrnns)
 		wrnns[0] = pngr->warnings;
 	if (error)
 		error[0] = pngr->error;
-	
+
 	switch (pngr->state) {
 		case 0: return PNGR_NOTSET;
 		case 1:

@@ -1,12 +1,12 @@
 /*
- * Copyright (C) 2021, jpn 
- * 
+ * Copyright (C) 2021, jpn
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -41,10 +41,10 @@ struct TImageInfo {
 	/* image size */
 	uintxx sizex;
 	uintxx sizey;
-	
+
 	uintxx colortype;  /* color mode */
 	uintxx depth;      /* bits per channel */
-	
+
 	/* size in bytes */
 	uintxx size;
 };
@@ -76,7 +76,7 @@ imginfo_getpelsize(TImageInfo* imginfo)
 {
 	uintxx pelsize;
 	ASSERT(imginfo);
-	
+
 	pelsize = 0;
 	switch (imginfo->colortype) {
 		case IMAGE_GRAY:      pelsize = 1; break;
@@ -93,7 +93,7 @@ CTB_INLINE uintxx
 imginfo_getrowsize(TImageInfo* imginfo)
 {
 	ASSERT(imginfo);
-	
+
 	return imginfo_getpelsize(imginfo) * imginfo->sizex;
 }
 

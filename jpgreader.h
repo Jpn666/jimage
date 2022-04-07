@@ -1,12 +1,12 @@
 /*
- * Copyright (C) 2021, jpn 
- * 
+ * Copyright (C) 2021, jpn
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -80,7 +80,7 @@ struct TJPGRPblc {
 	uintxx flags;
 	uintxx error;
 	uintxx warnings;       /* non fatal errors */
-	
+
 	/* image size */
 	uint32 sizex;
 	uint32 sizey;
@@ -93,14 +93,14 @@ struct TJPGRPblc {
 
 	/* properties */
 	uintxx isprogressive;
-	
+
 	/* */
 	uintxx mayorversion;
 	uintxx minorversion;
 	uintxx xdensity;
 	uintxx ydensity;
 	uintxx unit;
-	
+
 	/* ICC profile */
 	uint8* iccprofile;
 	uintxx iccpsize;
@@ -125,7 +125,7 @@ void jpgr_reset(TJPGReader*);
  * Sets the input function used to read the image data. */
 void jpgr_setinputfn(TJPGReader*, TIMGInputFn fn, void* user);
 
-/* 
+/*
  * Init the decoder and determines the required internal memory nedeed
  * to decode the image. */
 bool jpgr_initdecoder(TJPGReader*, TImageInfo* info);
@@ -180,12 +180,12 @@ CTB_INLINE eJPGRState
 jpgr_getstate(TJPGReader* jpgr, uintxx* error, uintxx* wrnns)
 {
 	ASSERT(jpgr);
-	
+
 	if (wrnns)
 		wrnns[0] = jpgr->warnings;
 	if (error)
 		error[0] = jpgr->error;
-	
+
 	switch (jpgr->state) {
 		case 0: return JPGR_NOTSET;
 		case 1:
