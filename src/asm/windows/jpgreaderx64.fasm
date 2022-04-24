@@ -1,12 +1,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Copyright (C) 2021, jpn 
-; 
+; Copyright (C) 2021, jpn
+;
 ; Licensed under the Apache License, Version 2.0 (the "License");
 ; you may not use this file except in compliance with the License.
 ; You may obtain a copy of the License at
-; 
+;
 ; http://www.apache.org/licenses/LICENSE-2.0
-; 
+;
 ; Unless required by applicable law or agreed to in writing, software
 ; distributed under the License is distributed on an "AS IS" BASIS,
 ; WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -39,6 +39,10 @@ public jpgr_setrow1
 public jpgr_setrow3
 ; Parameters:
 ; (pointer) int16 row1, row2, row2, (pointer) int8 target, int transform
+
+public jpgr_upsamplerow
+; Parameters:
+; (pointer) int16 row, int16 target, int mode(0-6)
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -93,6 +97,68 @@ jpgr_setrow3:
 ; SSE2 version
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+; rcx=r1, rdx=r2, r8=r3
+; rdi=row, rsi=target, rdx=mode
+jpgr_upsamplerow:
+	lea			rax, [.upsample]
+	shl			r8, 4
+	lea 		r8, [rax+r8]
+	movdqa		xmm0, [rcx]
+	jmp r8
+
+.upsample:
+	movdqa		[rdx], xmm0
+	ret
+	rept 11 {
+		nop
+	}
+
+	punpcklwd	xmm0, xmm0
+	movdqa		[rdx], xmm0
+	ret
+	rept 7 {
+		nop
+	}
+
+	punpckhwd	xmm0, xmm0
+	movdqa		[rdx], xmm0
+	ret
+	rept 7 {
+		nop
+	}
+
+	punpcklwd	xmm0, xmm0
+	punpcklwd	xmm0, xmm0
+	movdqa		[rdx], xmm0
+	ret
+	rept 3 {
+		nop
+	}
+
+	punpcklwd	xmm0, xmm0
+	punpckhwd	xmm0, xmm0
+	movdqa		[rdx], xmm0
+	ret
+	rept 3 {
+		nop
+	}
+
+	punpckhwd	xmm0, xmm0
+	punpcklwd	xmm0, xmm0
+	movdqa		[rdx], xmm0
+	ret
+	rept 3 {
+		nop
+	}
+
+	punpckhwd	xmm0, xmm0
+	punpckhwd	xmm0, xmm0
+	movdqa		[rdx], xmm0
+
+.done:
+	ret
+
+
 align 16
 c128:
 	dw 8 dup (128)
@@ -124,7 +190,7 @@ sse2_setrow3:
 	movdqa		xmm1, [rcx]
 	movdqa		xmm2, [rdx]
 	movdqa		xmm3, [r8]
-	
+
 	cmp			dword[rsp+8*5], 0h
 	je .notransform
 
@@ -132,7 +198,7 @@ sse2_setrow3:
 	sub			rsp, 48h
 
 	; r = y + cr * 1.402
-	; implemented as 
+	; implemented as
 	; y * scale + cr * 1.402
 	movdqa		xmm4, xmm1
 	movdqa		xmm5, xmm1
@@ -146,7 +212,7 @@ sse2_setrow3:
 
 	; b = y + cb * 1.177
 	; implemented as
-	; y * scale + cb * 1.777 
+	; y * scale + cb * 1.777
 	movdqa		xmm6, xmm1
 	movdqa		xmm7, xmm1
 	punpckhwd	xmm6, xmm2
@@ -244,7 +310,7 @@ sse2_setrow3:
 	packuswb	xmm1, xmm1
 	packuswb	xmm2, xmm2
 	packuswb	xmm3, xmm3
-	
+
 	jmp .setpels
 
 
@@ -338,7 +404,7 @@ jpgr_inverseDCT:
 	psrad		xmm8, 3
 
 	; dirty: xmm0 xmm1 xmm2 xmm3 xmm4 xmm5 xmm7 xmm8
-	; stage 2 
+	; stage 2
 	; lane0 = temp2 + temp3
 	; lane3 = temp3 - temp2
 	; lane1 = temp4 - temp1
@@ -406,7 +472,7 @@ jpgr_inverseDCT:
 	;
 	; this implementation:
 	; z3 = z3 * (I    ) + z4 * (I + G)
-	; z4 = z3 * (I + H) + z4 * (I) 
+	; z4 = z3 * (I + H) + z4 * (I)
 	movdqa		xmm4, xmm0
 	movdqa		xmm5, xmm1
 	paddw		xmm4, xmm2  ; z3=row7+row3
@@ -435,10 +501,10 @@ jpgr_inverseDCT:
 	movdqa		xmm9, xmm3  ; preserve row1
 	punpcklwd	xmm3, xmm0
 	punpckhwd	xmm9, xmm0
-	
+
 	; xmm0 is free now
-	movdqa		xmm0, xmm3 
-	movdqa		xmm8, xmm9 
+	movdqa		xmm0, xmm3
+	movdqa		xmm8, xmm9
 	pmaddwd		xmm0, [cE_DsumE]  ; xmm0=lane7lo
 	pmaddwd		xmm8, [cE_DsumE]  ; xmm8=lane7hi
 
@@ -474,7 +540,7 @@ jpgr_inverseDCT:
 	paddd		xmmB, xmm7  ; xmmB=lane6hi
 
 	; dirty: xmm0 xmm1 xmm2 xmm3 xmm8 xmm9 xmmA xmmB
-	
+
 	movdqa		xmm4, [bias1]
 
 	; last stage
@@ -486,7 +552,7 @@ jpgr_inverseDCT:
 	; row5 = ((lane2 - lane5) + 2048) >> 12
 	; row3 = ((lane3 + lane4) + 2048) >> 12
 	; row4 = ((lane3 - lane4) + 2048) >> 12
-	
+
 	movaps		xmm5, [rsp+ 0h]
 	movaps		xmm6, [rsp+10h]
 	paddd		xmm5, xmm0
@@ -715,7 +781,7 @@ jpgr_inverseDCT:
 	psrad		xmm8, 3
 
 	; dirty: xmm0 xmm1 xmm2 xmm3 xmm4 xmm5 xmm7 xmm8
-	; stage 2 
+	; stage 2
 	; lane0 = temp2 + temp3
 	; lane3 = temp3 - temp2
 	; lane1 = temp4 - temp1
@@ -768,7 +834,7 @@ jpgr_inverseDCT:
 	;
 	; this implementation:
 	; z3 = z3 * (I    ) + z4 * (I + G)
-	; z4 = z3 * (I + H) + z4 * (I) 
+	; z4 = z3 * (I + H) + z4 * (I)
 	movdqa		xmm4, xmm0
 	movdqa		xmm5, xmm1
 	paddw		xmm4, xmm2  ; z3=row7+row3
@@ -797,10 +863,10 @@ jpgr_inverseDCT:
 	movdqa		xmm9, xmm3  ; preserve row1
 	punpcklwd	xmm3, xmm0
 	punpckhwd	xmm9, xmm0
-	
+
 	; xmm0 is free now
 	movdqa		xmm0, xmm3
-	movdqa		xmm8, xmm9 
+	movdqa		xmm8, xmm9
 	pmaddwd		xmm0, [cE_DsumE]  ; xmm0=lane7lo
 	pmaddwd		xmm8, [cE_DsumE]  ; xmm8=lane7hi
 	pmaddwd		xmm3, [cAsumE_E]  ; xmm3=lane4lo
@@ -812,7 +878,7 @@ jpgr_inverseDCT:
 	punpckhwd	xmmA, xmm1
 
 	; xmm1 is free now
-	movdqa		xmm1, xmm2 
+	movdqa		xmm1, xmm2
 	movdqa		xmmB, xmmA
 	pmaddwd		xmm1, [cF_CsumF]  ; xmm1=lane6lo
 	pmaddwd		xmmB, [cF_CsumF]  ; xmmB=lane6hi
@@ -835,7 +901,7 @@ jpgr_inverseDCT:
 	paddd		xmmB, xmm7  ; xmmB=lane6hi
 
 	; dirty: xmm0 xmm1 xmm2 xmm3 xmm8 xmm9 xmmA xmmB
-	
+
 	movdqa		xmm4, [bias2]
 
 	; last stage
@@ -994,7 +1060,7 @@ ssse3_setrow3:
 	movaps		[rsp+20h], xmm9
 
 	; r = y + cr * 1.402
-	; implemented as 
+	; implemented as
 	; y * scale + cr * 1.402
 	movdqa		xmm4, xmm1
 	movdqa		xmm5, xmm1
@@ -1006,7 +1072,7 @@ ssse3_setrow3:
 
 	; b = y + cb * 1.177
 	; implemented as
-	; y * scale + cb * 1.777 
+	; y * scale + cb * 1.777
 	movdqa		xmm6, xmm1
 	movdqa		xmm7, xmm1
 	punpckhwd	xmm6, xmm2
@@ -1060,7 +1126,7 @@ ssse3_setrow3:
 	; restore xmm7
 	movaps		xmm7, [rsp+ 0h]
 	add			rsp, 30h
-	
+
 	packuswb	xmm1, xmm1
 	packuswb	xmm2, xmm2
 	packuswb	xmm3, xmm3
@@ -1070,32 +1136,32 @@ ssse3_setrow3:
 	movdqa		xmm0, [suffle1.1]
 	movdqa		xmm4, xmm1
 	pshufb		xmm4, xmm0
-	
+
 	movdqa		xmm0, [suffle2.1]
 	movdqa		xmm5, xmm2
 	pshufb		xmm5, xmm0
-	
+
 	movdqa		xmm0, [suffle3.1]
 	movdqa		xmm6, xmm3
 	pshufb		xmm6, xmm0
-	
+
 	por			xmm6, xmm5
 	por			xmm6, xmm4
 	movdqu		[r9], xmm6
-	
+
 	; remaining pixels
 	movdqa		xmm0, [suffle1.2]
 	movdqa		xmm4, xmm1
 	pshufb		xmm4, xmm0
-	
+
 	movdqa		xmm0, [suffle2.2]
 	movdqa		xmm5, xmm2
 	pshufb		xmm5, xmm0
-	
+
 	movdqa		xmm0, [suffle3.2]
 	movdqa		xmm6, xmm3
 	pshufb		xmm6, xmm0
-	
+
 	por			xmm6, xmm5
 	por			xmm6, xmm4
 	movq		[r9+10h], xmm6
@@ -1112,7 +1178,7 @@ ssse3_setrow3:
 	packuswb	xmm1, xmm1
 	packuswb	xmm2, xmm2
 	packuswb	xmm3, xmm3
-	
+
 	jmp .setpels
 
 

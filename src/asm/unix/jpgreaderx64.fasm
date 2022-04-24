@@ -1,12 +1,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Copyright (C) 2021, jpn 
-; 
+; Copyright (C) 2021, jpn
+;
 ; Licensed under the Apache License, Version 2.0 (the "License");
 ; you may not use this file except in compliance with the License.
 ; You may obtain a copy of the License at
-; 
+;
 ; http://www.apache.org/licenses/LICENSE-2.0
-; 
+;
 ; Unless required by applicable law or agreed to in writing, software
 ; distributed under the License is distributed on an "AS IS" BASIS,
 ; WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -40,6 +40,10 @@ public jpgr_setrow3
 ; Parameters:
 ; (pointer) int16 row1, row2, row2, (pointer) int8 target, int transform
 
+public jpgr_upsamplerow
+; Parameters:
+; (pointer) int16 row, int16 target, int mode(0-6)
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Initialize the jump table according to the CPU capabilities
@@ -53,11 +57,11 @@ initjump:
 	push		rcx
 	push		rdx
 	push		rbx
-    
+
 	xor			rax, rax
 	cmp			rax, qword[initdone]
 	jne .done
-    
+
 	mov			eax, 1
 	cpuid
 	and			ecx, SSSE3_FLAG
@@ -67,7 +71,7 @@ initjump:
 	mov			qword[jumptable.setrow3], rax
 	test		ecx, ecx
 	jz .done
-    
+
 	; ssse3
 	lea			rax, [ssse3_setrow3]
 	mov			qword[jumptable.setrow3], rax
@@ -93,17 +97,79 @@ jpgr_setrow3:
 ; SSE2 version
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+
+; rdi=row, rsi=target, rdx=mode
+jpgr_upsamplerow:
+	lea			rax, [.upsample]
+	shl			rdx, 4
+	lea 		rdx, [rax+rdx]
+	movdqa		xmm0, [rdi]
+	jmp rdx
+
+.upsample:
+	movdqa		[rsi], xmm0
+	ret
+	rept 11 {
+		nop
+	}
+
+	punpcklwd	xmm0, xmm0
+	movdqa		[rsi], xmm0
+	ret
+	rept 7 {
+		nop
+	}
+
+	punpckhwd	xmm0, xmm0
+	movdqa		[rsi], xmm0
+	ret
+	rept 7 {
+		nop
+	}
+
+	punpcklwd	xmm0, xmm0
+	punpcklwd	xmm0, xmm0
+	movdqa		[rsi], xmm0
+	ret
+	rept 3 {
+		nop
+	}
+
+	punpcklwd	xmm0, xmm0
+	punpckhwd	xmm0, xmm0
+	movdqa		[rsi], xmm0
+	ret
+	rept 3 {
+		nop
+	}
+
+	punpckhwd	xmm0, xmm0
+	punpcklwd	xmm0, xmm0
+	movdqa		[rsi], xmm0
+	ret
+	rept 3 {
+		nop
+	}
+
+	punpckhwd	xmm0, xmm0
+	punpckhwd	xmm0, xmm0
+	movdqa		[rsi], xmm0
+
+.done:
+	ret
+
+
 align 16
 c128:
 	dw 8 dup (128)
 
 ; rdi=r1, rsi=destination
 sse2_setrow1:
-	movdqa      xmm0, [rdi]
-	paddw       xmm0, [c128]
-	packuswb    xmm0, xmm0
-	movq        [rsi], xmm0
-	
+	movdqa		xmm0, [rdi]
+	paddw		xmm0, [c128]
+	packuswb	xmm0, xmm0
+	movq		[rsi], xmm0
+
 	ret
 
 
@@ -121,15 +187,15 @@ c4: dd 8 dup (526336)
 
 ; rdi=r1, rsi=r2, rdx=r3, rcx=destination, r8=transform
 sse2_setrow3:
-	movdqa      xmm1, [rdi]
-	movdqa      xmm2, [rsi]
-	movdqa      xmm3, [rdx]
+	movdqa		xmm1, [rdi]
+	movdqa		xmm2, [rsi]
+	movdqa		xmm3, [rdx]
 
 	cmp			r8, 0h
 	je .notransform
 
 	; r = y + cr * 1.402
-	; implemented as 
+	; implemented as
 	; y * scale + cr * 1.402
 	movdqa		xmm4, xmm1
 	movdqa		xmm5, xmm1
@@ -141,7 +207,7 @@ sse2_setrow3:
 
 	; b = y + cb * 1.177
 	; implemented as
-	; y * scale + cb * 1.777 
+	; y * scale + cb * 1.777
 	movdqa		xmm6, xmm1
 	movdqa		xmm7, xmm1
 	punpckhwd	xmm6, xmm2
@@ -161,7 +227,7 @@ sse2_setrow3:
 	movdqa		xmm0, [c2]
 	pmaddwd		xmm8, xmm0
 	pmaddwd		xmm9, xmm0
-	
+
 	movdqa		xmm0, [c4]
 
 	; g
@@ -172,7 +238,7 @@ sse2_setrow3:
 	packssdw	xmm9, xmm8
 	paddw		xmm9, xmm1
 	movdqa		xmm2, xmm9
-	
+
 	; r
 	paddd		xmm4, xmm0
 	paddd		xmm5, xmm0
@@ -180,7 +246,7 @@ sse2_setrow3:
 	psrad		xmm5, 12
 	packssdw	xmm5, xmm4
 	movdqa		xmm1, xmm5
-	
+
 	; b
 	paddd		xmm6, xmm0
 	paddd		xmm7, xmm0
@@ -188,7 +254,7 @@ sse2_setrow3:
 	psrad		xmm7, 12
 	packssdw	xmm7, xmm6
 	movdqa		xmm3, xmm7
-	
+
 	packuswb	xmm1, xmm1
 	packuswb	xmm2, xmm2
 	packuswb	xmm3, xmm3
@@ -199,7 +265,7 @@ sse2_setrow3:
 	rept 4 counter:0 {
 		mov			al, byte[rsp+(counter*2)+0]
 		mov			cl, byte[rsp+(counter*2)+1]
-		
+
 		mov			byte[rcx+((counter*2)+0)*3+0], al
 		mov			byte[rcx+((counter*2)+1)*3+0], cl
 	}
@@ -208,7 +274,7 @@ sse2_setrow3:
 	rept 4 counter:0 {
 		mov			al, byte[rsp+(counter*2)+0]
 		mov			cl, byte[rsp+(counter*2)+1]
-		
+
 		mov			byte[rcx+((counter*2)+0)*3+0], al
 		mov			byte[rcx+((counter*2)+1)*3+0], cl
 	}
@@ -217,7 +283,7 @@ sse2_setrow3:
 	rept 4 counter:0 {
 		mov			al, byte[rsp+(counter*2)+0]
 		mov			cl, byte[rsp+(counter*2)+1]
-		
+
 		mov			byte[rcx+((counter*2)+0)*3+0], al
 		mov			byte[rcx+((counter*2)+1)*3+0], cl
 	}
@@ -321,7 +387,7 @@ jpgr_inverseDCT:
 	psrad		xmm8, 3
 
 	; dirty: xmm0 xmm1 xmm2 xmm3 xmm4 xmm5 xmm7 xmm8
-	; stage 2 
+	; stage 2
 	; lane0 = temp2 + temp3
 	; lane3 = temp3 - temp2
 	; lane1 = temp4 - temp1
@@ -408,10 +474,10 @@ jpgr_inverseDCT:
 	movdqa		xmm9, xmm3  ; preserve row1
 	punpcklwd	xmm3, xmm0
 	punpckhwd	xmm9, xmm0
-	
+
 	; xmm0 is free now
-	movdqa		xmm0, xmm3 
-	movdqa		xmm8, xmm9 
+	movdqa		xmm0, xmm3
+	movdqa		xmm8, xmm9
 	pmaddwd		xmm0, [cE_DsumE]  ; xmm0=lane7lo
 	pmaddwd		xmm8, [cE_DsumE]  ; xmm8=lane7hi
 
@@ -447,7 +513,7 @@ jpgr_inverseDCT:
 	paddd		xmmB, xmm7  ; xmmB=lane6hi
 
 	; dirty: xmm0 xmm1 xmm2 xmm3 xmm8 xmm9 xmmA xmmB
-	
+
 	movdqa		xmm4, [bias1]
 
 	; last stage
@@ -688,7 +754,7 @@ jpgr_inverseDCT:
 	psrad		xmm8, 3
 
 	; dirty: xmm0 xmm1 xmm2 xmm3 xmm4 xmm5 xmm7 xmm8
-	; stage 2 
+	; stage 2
 	; lane0 = temp2 + temp3
 	; lane3 = temp3 - temp2
 	; lane1 = temp4 - temp1
@@ -770,7 +836,7 @@ jpgr_inverseDCT:
 	movdqa		xmm9, xmm3  ; preserve row1
 	punpcklwd	xmm3, xmm0
 	punpckhwd	xmm9, xmm0
-	
+
 	; xmm0 is free now
 	movdqa		xmm0, xmm3
 	movdqa		xmm8, xmm9
@@ -809,7 +875,7 @@ jpgr_inverseDCT:
 	paddd		xmmB, xmm7  ; xmmB=lane6hi
 
 	; dirty: xmm0 xmm1 xmm2 xmm3 xmm8 xmm9 xmmA xmmB
-	
+
 	movdqa		xmm4, [bias2]
 
 	; last stage
@@ -912,7 +978,7 @@ jpgr_inverseDCT:
 	psrad		xmmE, 17
 	packssdw	xmmD, xmmE  ; xmmD=row4
 	movaps		[rsi+40h], xmmD
-	
+
 	mov 		rsp, rax
 	ret
 
@@ -920,6 +986,7 @@ jpgr_inverseDCT:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; SSSE3 version
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 
 ; Suffle tables
 align 16
@@ -937,15 +1004,15 @@ suffle3:
 
 ; rdi=r1, rsi=r2, rdx=r3, rcx=destination, r8=transform
 ssse3_setrow3:
-	movdqa      xmm1, [rdi]
-	movdqa      xmm2, [rsi]
-	movdqa      xmm3, [rdx]
+	movdqa		xmm1, [rdi]
+	movdqa		xmm2, [rsi]
+	movdqa		xmm3, [rdx]
 
 	cmp			r8, 0h
 	je .notransform
 
 	; r = y + cr * 1.402
-	; implemented as 
+	; implemented as
 	; y * scale + cr * 1.402
 	movdqa		xmm4, xmm1
 	movdqa		xmm5, xmm1
@@ -957,7 +1024,7 @@ ssse3_setrow3:
 
 	; b = y + cb * 1.177
 	; implemented as
-	; y * scale + cb * 1.777 
+	; y * scale + cb * 1.777
 	movdqa		xmm6, xmm1
 	movdqa		xmm7, xmm1
 	punpckhwd	xmm6, xmm2
@@ -977,7 +1044,7 @@ ssse3_setrow3:
 	movdqa		xmm0, [c2]
 	pmaddwd		xmm8, xmm0
 	pmaddwd		xmm9, xmm0
-	
+
 	movdqa		xmm0, [c4]
 
 	; g
@@ -988,7 +1055,7 @@ ssse3_setrow3:
 	packssdw	xmm9, xmm8
 	paddw		xmm9, xmm1
 	movdqa		xmm2, xmm9
-	
+
 	; r
 	paddd		xmm4, xmm0
 	paddd		xmm5, xmm0
@@ -996,7 +1063,7 @@ ssse3_setrow3:
 	psrad		xmm5, 12
 	packssdw	xmm5, xmm4
 	movdqa		xmm1, xmm5
-	
+
 	; b
 	paddd		xmm6, xmm0
 	paddd		xmm7, xmm0
@@ -1004,7 +1071,7 @@ ssse3_setrow3:
 	psrad		xmm7, 12
 	packssdw	xmm7, xmm6
 	movdqa		xmm3, xmm7
-	
+
 	packuswb	xmm1, xmm1
 	packuswb	xmm2, xmm2
 	packuswb	xmm3, xmm3
@@ -1014,38 +1081,38 @@ ssse3_setrow3:
 	movdqa		xmm0, [suffle1.1]
 	movdqa		xmm4, xmm1
 	pshufb		xmm4, xmm0
-	
+
 	movdqa		xmm0, [suffle2.1]
 	movdqa		xmm5, xmm2
 	pshufb		xmm5, xmm0
-	
+
 	movdqa		xmm0, [suffle3.1]
 	movdqa		xmm6, xmm3
 	pshufb		xmm6, xmm0
-	
+
 	por			xmm6, xmm5
 	por			xmm6, xmm4
 	movdqu		[rcx], xmm6
-	
+
 	; remaining pixels
 	movdqa		xmm0, [suffle1.2]
 	movdqa		xmm4, xmm1
 	pshufb		xmm4, xmm0
-	
+
 	movdqa		xmm0, [suffle2.2]
 	movdqa		xmm5, xmm2
 	pshufb		xmm5, xmm0
-	
+
 	movdqa		xmm0, [suffle3.2]
 	movdqa		xmm6, xmm3
 	pshufb		xmm6, xmm0
-	
+
 	por			xmm6, xmm5
 	por			xmm6, xmm4
 	movq		[rcx+10h], xmm6
 
 	ret
-	
+
 .notransform:
 	movdqa		xmm0, [c128]
 	paddw		xmm1, xmm0

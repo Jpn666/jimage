@@ -1207,7 +1207,7 @@ initcomponents(struct TJPGRPblc* jpgr, uintxx ys, uintxx xs)
 	uintxx x;
 	uintxx sizey;
 	uintxx sizex;
-	struct TJPGComponent* component;
+	struct TJPGComponent* c;
 	const uintxx f[] = {
 		0x00, 0x03, 0x04, 0x00, 0x05
 	};
@@ -1230,24 +1230,29 @@ initcomponents(struct TJPGRPblc* jpgr, uintxx ys, uintxx xs)
 			0x00, 0x00, 0x01, 0x00, 0x02
 		};
 
-		component = PRVT->components + i;
+		c = PRVT->components + i;
 
 		/* component size in number of units including padding */
-		bsizey = sizey >> f[PRVT->ysampling >> s[component->ysampling]];
-		bsizex = sizex >> f[PRVT->xsampling >> s[component->xsampling]];
-		component->irows = bsizey;
-		component->icols = bsizex;
+		bsizey = sizey >> f[PRVT->ysampling >> s[c->ysampling]];
+		bsizex = sizex >> f[PRVT->xsampling >> s[c->xsampling]];
+		c->irows = bsizey;
+		c->icols = bsizex;
 		if (PRVT->isinterleaved) {
-			component->ucount = component->ysampling * component->xsampling;
+			if (PRVT->ncomponents == 3) {
+				c->ucount = c->ysampling * c->xsampling;
+			}
+			else {
+				c->ucount = 1;
+			}
 		}
 		else {
-			component->ucount = bsizey * bsizex;
+			c->ucount = bsizey * bsizex;
 		}
 
-		bsizey = ys >> s[component->ysampling];
-		bsizex = xs >> s[component->xsampling];
-		component->nrows = (jpgr->sizey + (bsizey << 3) - 1) >> f[bsizey];
-		component->ncols = (jpgr->sizex + (bsizex << 3) - 1) >> f[bsizex];
+		bsizey = ys >> s[c->ysampling];
+		bsizex = xs >> s[c->xsampling];
+		c->nrows = (jpgr->sizey + (bsizey << 3) - 1) >> f[bsizey];
+		c->ncols = (jpgr->sizex + (bsizex << 3) - 1) >> f[bsizex];
 
 		/* 1 = 0; 2 = 1; 4 = 3 */
 		rumode = bsizex - 1;
@@ -1264,19 +1269,19 @@ initcomponents(struct TJPGRPblc* jpgr, uintxx ys, uintxx xs)
 
 			um = rumode;
 			ax = 0;
-			ay = (y >> s[bsizey]) * component->xsampling;
+			ay = (y >> s[bsizey]) * c->xsampling;
 			for (x = 0; x < xs; x++) {
 				uintxx m;
 
 				m = n + ax;
-				component->iblock[j] = (uint8) (ay + (x >> s[bsizex]));
-				component->offset[j] = (uint8) (m & 0x3f);
+				c->iblock[j] = (uint8) (ay + (x >> s[bsizex]));
+				c->offset[j] = (uint8) (m & 0x3f);
 
 				ax += totalx;
 				if (ax >= 8)
 					ax -= 8;
 
-				component->rumode[j] = (uint8) um;
+				c->rumode[j] = (uint8) um;
 				if (bsizex != 1)
 					um++;
 				j++;
@@ -1284,7 +1289,7 @@ initcomponents(struct TJPGRPblc* jpgr, uintxx ys, uintxx xs)
 			n += totaly;
 		}
 		n = ((s[bsizey] << 1) + s[bsizey]) + s[bsizex];
-		component->umap = upscalemap[n];
+		c->umap = upscalemap[n];
 	}
 
 	/* pixel origin for each block */
@@ -1465,8 +1470,10 @@ parseSOF0(struct TJPGRPblc* jpgr, uintxx progressive)
 
 	/* MCU size limit */
 	if (total > 10) {
-		SETERROR(JPGR_EINVALIDIMAGE);
-		return 0;
+		if (PRVT->ncomponents == 3) {
+			SETERROR(JPGR_EINVALIDIMAGE);
+			return 0;
+		}
 	}
 	PRVT->ysampling = ysampling;
 	PRVT->xsampling = xsampling;
@@ -1875,12 +1882,14 @@ jpgr_setbuffers(TJPGReader* jpgr, uint8* memory, uint8* pixels)
 		}
 	}
 
-	if (PRVT->issubsampled) {
-		for (i = 0; i < PRVT->ncomponents; i++) {
-			c = PRVT->components + i;
+	if (PRVT->ncomponents == 3) {
+		if (PRVT->issubsampled) {
+			for (i = 0; i < PRVT->ncomponents; i++) {
+				c = PRVT->components + i;
 
-			c->srow = (void*) memory;
-			memory += (8 * sizeof(c->srow[0]));
+				c->srow = (void*) memory;
+				memory += (8 * sizeof(c->srow[0]));
+			}
 		}
 	}
 
@@ -2339,6 +2348,7 @@ decodeblock(struct TJPGRPblc* jpgr, struct TJPGComponent* c, int16* block)
 		SETERROR(JPGR_EBADCODE);
 		return 0;
 	}
+
 	length = GETLENGTH(s);
 	DROPBITS(bb, bc, length);
 	r += length;
@@ -2423,6 +2433,7 @@ decodeblock(struct TJPGRPblc* jpgr, struct TJPGComponent* c, int16* block)
 	PRVT->bbcount = bc;
 	PRVT->bbcread = PRVT->bbcread - r;
 	if (UNLIKELY(overread(jpgr))) {
+		SETERROR(JPGR_EBADCODE);
 		return 0;
 	}
 	return 1;
@@ -2769,7 +2780,8 @@ tograyscale(int16 v)
 #if defined(JPGR_CFG_EXTERNALASM)
 
 extern void jpgr_setrow3(int16*, int16*, int16*, uint8*, uintxx);
-extern void jpgr_setrow1(int16* r1, uint8* row);
+extern void jpgr_setrow1(int16*, uint8*);
+extern void jpgr_upsamplerow(int16*, int16*, uintxx);
 
 #else
 
@@ -2878,179 +2890,103 @@ setrow1(int16* r1, uint8* row)
 
 #endif
 
+
 static void
-setpixels1(struct TJPGRPblc* jpgr, uintxx y, uintxx x)
+setpixels1(struct TJPGRPblc* jpgr, uintxx y, uintxx x, int16* u1)
 {
-	uintxx i;
 	uintxx s;
 	uintxx stepx;
-	int16* r1;
-	int16* u1;
-	struct TJPGComponent* c1;
-	uintxx sy;
-	uintxx sx;
-	const uintxx svalue[] = {
-		0, 3, 4, 0, 5
-	};
+	uintxx row;
+	uintxx col;
+	uintxx o;
 
-	c1 = PRVT->components + 0;
-	r1 = c1->srow;
+	row = y << 3;
+	for (s = 0; s < 64; s += 8) {
+		if (UNLIKELY(row >= jpgr->sizey)) {
+			break;
+		}
 
-	sy = svalue[PRVT->ysampling];
-	sx = svalue[PRVT->xsampling];
-	for (i = 0; i < PRVT->nunits; i++) {
-		uintxx row;
-		uintxx col;
-		uintxx d1;
-		uintxx i1;
+		col = x << 3;
+		if (col + 8 <= jpgr->sizex) {
+			o = (row * jpgr->sizex) + col;
 
-		d1 = c1->offset[i];
-		i1 = c1->iblock[i];
-		u1 = c1->units[i1];
+			setrow1(u1 + s, PRVT->pixels + o);
+			row++;
+			continue;
+		}
 
-		row = (y << sy) + PRVT->originy[i];
-		for (s = 0; s < 64; s += 8) {
-			uintxx o;
-
-			if (UNLIKELY(row >= jpgr->sizey)) {
+		o = (row * jpgr->sizex) + col;
+		for (stepx = 0; stepx < 8; stepx++) {
+			if (col >= jpgr->sizex) {
 				break;
 			}
 
-			col = (x << sx) + PRVT->originx[i];
-			if (col + 8 <= jpgr->sizex) {
-				o = (row * jpgr->sizex) + col;
-
-				if (PRVT->issubsampled) {
-					r1[0] = u1[c1->umap[s++] + d1];
-					r1[1] = u1[c1->umap[s++] + d1];
-					r1[2] = u1[c1->umap[s++] + d1];
-					r1[3] = u1[c1->umap[s++] + d1];
-					r1[4] = u1[c1->umap[s++] + d1];
-					r1[5] = u1[c1->umap[s++] + d1];
-					r1[6] = u1[c1->umap[s++] + d1];
-					r1[7] = u1[c1->umap[s++] + d1];
-
-					setrow1(r1, PRVT->pixels + o);
-					row++;
-					continue;
-				}
-
-				setrow1(u1 + s, PRVT->pixels + o);
-				row++;
-				continue;
-			}
-
-			for (stepx = 0; stepx < 8; stepx++) {
-				int16 a1;
-				uint8 r;
-
-				if (col >= jpgr->sizex) {
-					break;
-				}
-
-				if (PRVT->issubsampled) {
-					a1 = u1[c1->umap[s++] + d1];
-				}
-				else {
-					a1 = u1[s++];
-				}
-				r = tograyscale(a1);
-
-				o = (row * jpgr->sizex) + col;
-				PRVT->pixels[o] = r;
-				col++;
-			}
-			row++;
+			PRVT->pixels[o++] = tograyscale(u1[s + stepx]);
+			col++;
 		}
+		row++;
 	}
 }
 
 /* non subsampled components */
 static void
-setpixels3ns(struct TJPGRPblc* jpgr, uintxx y, uintxx x)
+setpixels3ns(struct TJPGRPblc* jpgr, uintxx y, uintxx x, uintxx torgb)
 {
-	uintxx i;
 	uintxx s;
 	uintxx stepx;
 	int16* u1;
 	int16* u2;
 	int16* u3;
-	struct TJPGComponent* c1;
-	struct TJPGComponent* c2;
-	struct TJPGComponent* c3;
-	uintxx torgb;
-	uintxx limit;
-	uintxx y8;
-	uintxx x8;
-	const uintxx svalue[] = {
-		0, 3, 4, 0, 5
-	};
+	uintxx row;
+	uintxx col;
 
-	torgb = 1;
-	if (PRVT->isrgb == 1 || PRVT->keepyuv == 1)
-		torgb = 0;
-	limit = jpgr->sizey * jpgr->sizex;
+	u1 = PRVT->components[0].units[0];
+	u2 = PRVT->components[1].units[0];
+	u3 = PRVT->components[2].units[0];
 
-	c1 = PRVT->components + 0;
-	c2 = PRVT->components + 1;
-	c3 = PRVT->components + 2;
+	row = y << 3;
+	for (s = 0; s < 64; s += 8) {
+		uintxx o;
 
-	y8 = svalue[PRVT->ysampling];
-	x8 = svalue[PRVT->xsampling];
-	u1 = c1->units[0];
-	u2 = c2->units[0];
-	u3 = c3->units[0];
-	for (i = 0; i < PRVT->nunits; i++) {
-		uintxx row;
-		uintxx col;
+		if (UNLIKELY(row >= jpgr->sizey)) {
+			break;
+		}
 
-		row = ((y << y8) + PRVT->originy[i]) * jpgr->sizex;
-		for (s = 0; s < 64; s += 8) {
-			uintxx o;
+		col = x << 3;
+		if (LIKELY(col + 8 <= jpgr->sizex)) {
+			o = ((row * jpgr->sizex) + col) * 3;
+			setrow3(u1 + s, u2 + s, u3 + s, PRVT->pixels + o, torgb);
+			row++;
+			continue;
+		}
 
-			if (UNLIKELY(row >= limit)) {
+		o = ((row * jpgr->sizex) + col) * 3;
+		for (stepx = 0; stepx < 8; stepx++) {
+			int16 a1;
+			int16 a2;
+			int16 a3;
+			struct TJPGRGB r;
+
+			if (UNLIKELY(col >= jpgr->sizex)) {
 				break;
 			}
+			a1 = u1[s + stepx];
+			a2 = u2[s + stepx];
+			a3 = u3[s + stepx];
+			r = toRGB(a1, a2, a3, torgb);
 
-			col = (x << x8) + PRVT->originx[i];
-			if (LIKELY(col + 8 < jpgr->sizex)) {
-				o = (row + col) * 3;
-				setrow3(u1 + s, u2 + s, u3 + s, PRVT->pixels + o, torgb);
-				row += jpgr->sizex;
-				continue;
-			}
-
-			o = (row + col) * 3;
-			for (stepx = 0; stepx < 8; stepx++) {
-				int16 a1;
-				int16 a2;
-				int16 a3;
-				struct TJPGRGB r;
-
-				if (UNLIKELY(col >= jpgr->sizex)) {
-					break;
-				}
-				a1 = u1[s + stepx];
-				a2 = u2[s + stepx];
-				a3 = u3[s + stepx];
-				r = toRGB(a1, a2, a3, torgb);
-
-				PRVT->pixels[o + 0] = r.r;
-				PRVT->pixels[o + 1] = r.g;
-				PRVT->pixels[o + 2] = r.b;
-				o += 3;
-
-				col++;
-			}
-
-			row += jpgr->sizex;
+			PRVT->pixels[o++] = r.r;
+			PRVT->pixels[o++] = r.g;
+			PRVT->pixels[o++] = r.b;
+			col++;
 		}
+		row++;
 	}
 }
 
 /* image containing subsampled components */
 static void
-setpixels3ss(struct TJPGRPblc* jpgr, uintxx y, uintxx x)
+setpixels3ss(struct TJPGRPblc* jpgr, uintxx y, uintxx x, uintxx torgb)
 {
 	uintxx i;
 	uintxx s;
@@ -3064,11 +3000,6 @@ setpixels3ss(struct TJPGRPblc* jpgr, uintxx y, uintxx x)
 	struct TJPGComponent* c1;
 	struct TJPGComponent* c2;
 	struct TJPGComponent* c3;
-	uintxx torgb;
-
-	torgb = 1;
-	if (PRVT->isrgb == 1 || PRVT->keepyuv == 1)
-		torgb = 0;
 
 	c1 = PRVT->components + 0;
 	c2 = PRVT->components + 1;
@@ -3080,37 +3011,40 @@ setpixels3ss(struct TJPGRPblc* jpgr, uintxx y, uintxx x)
 		uintxx row;
 		uintxx col;
 		uintxx d1, d2, d3;
-		uintxx i1, i2, i3;
 
 		d1 = c1->offset[i];
 		d2 = c2->offset[i];
 		d3 = c3->offset[i];
-		i1 = c1->iblock[i];
-		i2 = c2->iblock[i];
-		i3 = c3->iblock[i];
-		u1 = c1->units[i1];
-		u2 = c2->units[i2];
-		u3 = c3->units[i3];
+		u1 = c1->units[c1->iblock[i]];
+		u2 = c2->units[c2->iblock[i]];
+		u3 = c3->units[c3->iblock[i]];
 
 		row = y * (PRVT->ysampling * 8) + PRVT->originy[i];
 		for (s = 0; s < 64; s += 8) {
 			uintxx o;
+			int16* row1;
+			int16* row2;
+			int16* row3;
 
+#if defined(JPGR_CFG_EXTERNALASM)
+			row1 = u1 + c1->umap[s] + (d1 & -0x08);
+			row2 = u2 + c2->umap[s] + (d2 & -0x08);
+			row3 = u3 + c3->umap[s] + (d3 & -0x08);
+#endif
 			if (UNLIKELY(row >= jpgr->sizey)) {
 				break;
 			}
 
 			col = x * (PRVT->xsampling * 8) + PRVT->originx[i];
 			if (col + 8 <= jpgr->sizex) {
-				int16* row1;
-				int16* row2;
-				int16* row3;
-
 				o = ((row * jpgr->sizex) + col) * 3;
 
 				/* this may be slow, but not significantly slower for most
 				 * images */
 				if (c1->rumode[i]) {
+#if defined(JPGR_CFG_EXTERNALASM)
+					jpgr_upsamplerow(row1, r1, c1->rumode[i]);
+#else
 					r1[0] = u1[c1->umap[s + 0] + d1];
 					r1[1] = u1[c1->umap[s + 1] + d1];
 					r1[2] = u1[c1->umap[s + 2] + d1];
@@ -3119,6 +3053,7 @@ setpixels3ss(struct TJPGRPblc* jpgr, uintxx y, uintxx x)
 					r1[5] = u1[c1->umap[s + 5] + d1];
 					r1[6] = u1[c1->umap[s + 6] + d1];
 					r1[7] = u1[c1->umap[s + 7] + d1];
+#endif
 					row1 = r1;
 				}
 				else {
@@ -3126,6 +3061,9 @@ setpixels3ss(struct TJPGRPblc* jpgr, uintxx y, uintxx x)
 				}
 
 				if (c2->rumode[i]) {
+#if defined(JPGR_CFG_EXTERNALASM)
+					jpgr_upsamplerow(row2, r2, c2->rumode[i]);
+#else
 					r2[0] = u2[c2->umap[s + 0] + d2];
 					r2[1] = u2[c2->umap[s + 1] + d2];
 					r2[2] = u2[c2->umap[s + 2] + d2];
@@ -3134,6 +3072,7 @@ setpixels3ss(struct TJPGRPblc* jpgr, uintxx y, uintxx x)
 					r2[5] = u2[c2->umap[s + 5] + d2];
 					r2[6] = u2[c2->umap[s + 6] + d2];
 					r2[7] = u2[c2->umap[s + 7] + d2];
+#endif
 					row2 = r2;
 				}
 				else {
@@ -3141,6 +3080,9 @@ setpixels3ss(struct TJPGRPblc* jpgr, uintxx y, uintxx x)
 				}
 
 				if (c3->rumode[i]) {
+#if defined(JPGR_CFG_EXTERNALASM)
+					jpgr_upsamplerow(row3, r3, c3->rumode[i]);
+#else
 					r3[0] = u3[c3->umap[s + 0] + d3];
 					r3[1] = u3[c3->umap[s + 1] + d3];
 					r3[2] = u3[c3->umap[s + 2] + d3];
@@ -3149,6 +3091,7 @@ setpixels3ss(struct TJPGRPblc* jpgr, uintxx y, uintxx x)
 					r3[5] = u3[c3->umap[s + 5] + d3];
 					r3[6] = u3[c3->umap[s + 6] + d3];
 					r3[7] = u3[c3->umap[s + 7] + d3];
+#endif
 					row3 = r3;
 				}
 				else {
@@ -3214,8 +3157,8 @@ decodebaseline(struct TJPGRPblc* jpgr)
 	uintxx y;
 	uintxx x;
 	uintxx i;
+	uintxx torgb;
 	uintxx interval;
-	void (*setpixels)(struct TJPGRPblc*, uintxx, uintxx);
 
 	initbitmode(jpgr);
 	interval = PRVT->rinterval;
@@ -3247,14 +3190,44 @@ decodebaseline(struct TJPGRPblc* jpgr)
 		return 1;
 	}
 
-	setpixels = setpixels1;
-	if (PRVT->ncomponents == 3) {
-		setpixels = setpixels3ss;
-		if (PRVT->issubsampled == 0)
-			setpixels = setpixels3ns;
+	/* 1 component image */
+	if (PRVT->ncomponents == 1) {
+		struct TJPGComponent* c1;
+
+		c1 = PRVT->components + PRVT->corder[0];
+		for (y = 0; y < c1->nrows; y++) {
+			for (x = 0; x < c1->ncols; x++) {
+				if (PRVT->rinterval) {
+					/* TODO: need to add a counter here to count mcus */
+					if (UNLIKELY(interval == 0)) {
+						if (checkinterval(jpgr) == 0) {
+							return 0;
+						}
+						initbitmode(jpgr);
+						interval = PRVT->rinterval;
+					}
+					interval -= 1;
+				}
+
+				if (UNLIKELY(decodeblock(jpgr, c1, c1->units[0]) == 0)) {
+					return 0;
+				}
+
+				if (LIKELY(PRVT->pixels != NULL)) {
+					inverseDCT(c1->units[0], c1->units[0], c1->qtable->values);
+					setpixels1(jpgr, y, x, c1->units[0]);
+				}
+			}
+		}
+		return 1;
 	}
 
-	if (setpixels == setpixels3ns) {
+	/* 3 component image */
+	torgb = 1;
+	if (PRVT->isrgb == 1 || PRVT->keepyuv == 1)
+		torgb = 0;
+
+	if (PRVT->issubsampled == 0) {
 		struct TJPGComponent* c1;
 		struct TJPGComponent* c2;
 		struct TJPGComponent* c3;
@@ -3288,7 +3261,7 @@ decodebaseline(struct TJPGRPblc* jpgr)
 					inverseDCT(c1->units[0], c1->units[0], c1->qtable->values);
 					inverseDCT(c2->units[0], c2->units[0], c2->qtable->values);
 					inverseDCT(c3->units[0], c3->units[0], c3->qtable->values);
-					setpixels(jpgr, y, x);
+					setpixels3ns(jpgr, y, x, torgb);
 				}
 			}
 		}
@@ -3322,7 +3295,7 @@ decodebaseline(struct TJPGRPblc* jpgr)
 			}
 
 			if (LIKELY(PRVT->pixels != NULL)) {
-				setpixels(jpgr, y, x);
+				setpixels3ss(jpgr, y, x, torgb);
 			}
 		}
 	}
@@ -3778,21 +3751,47 @@ updateimg(struct TJPGRPblc* jpgr)
 	uintxx y;
 	uintxx x;
 	uintxx i;
+	uintxx v;
+	uintxx torgb;
 	int16* temp;
 	int16* unit;
 	struct TJPGComponent* c;
-	void (*setpixels)(struct TJPGRPblc* jpgr, uintxx y, uintxx x);
+	void (*setpixels)(struct TJPGRPblc*, uintxx, uintxx, uintxx);
 
 	if (UNLIKELY(PRVT->pixels == NULL)) {
 		return;
 	}
 
-	setpixels = setpixels1;
-	if (PRVT->ncomponents == 3) {
-		setpixels = setpixels3ss;
-		if (PRVT->issubsampled == 0)
-			setpixels = setpixels3ns;
+	if (PRVT->ncomponents == 1) {
+		c = PRVT->components;
+		for (y = 0; y < c->nrows; y++) {
+			for (x = 0; x < c->ncols; x++) {
+				temp = c->scan + ((y * c->icols + x) << 6);
+
+				if (jpgr->isprogressive == 0) {
+					/* non interleaved baseline image */
+					inverseDCT(temp, c->units[0], c->qtable->values);
+				}
+				else {
+					unit = c->units[0];
+					for (v = 0; v < 64; v++) {
+						unit[zzorder[v]] = temp[v];
+					}
+					inverseDCT(unit, unit, c->qtable->values);
+				}
+				setpixels1(jpgr, y, x, c->units[0]);
+			}
+		}
+		return;
 	}
+
+	torgb = 1;
+	if (PRVT->isrgb == 1 || PRVT->keepyuv == 1)
+		torgb = 0;
+
+	setpixels = setpixels3ss;
+	if (PRVT->issubsampled == 0)
+		setpixels = setpixels3ns;
 
 	for (y = 0; y < PRVT->nrows; y++) {
 		for (x = 0; x < PRVT->ncols; x++) {
@@ -3813,8 +3812,6 @@ updateimg(struct TJPGRPblc* jpgr)
 
 					offsety = (y1 + y2) * c->icols;
 					for (x2 = 0; x2 < c->xsampling; x2++) {
-						uintxx v;
-
 						temp = c->scan + ((offsety + x1 + x2) << 6);
 						if (jpgr->isprogressive == 0) {
 							/* non interleaved baseline image */
@@ -3832,7 +3829,7 @@ updateimg(struct TJPGRPblc* jpgr)
 					}
 				}
 			}
-			setpixels(jpgr, y, x);
+			setpixels(jpgr, y, x, torgb);
 		}
 	}
 }
