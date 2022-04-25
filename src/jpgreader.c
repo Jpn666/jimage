@@ -1195,19 +1195,98 @@ static const uint8 upscalemap[][64] = {
 		0x08, 0x08, 0x09, 0x09, 0x0a, 0x0a, 0x0b, 0x0b,
 		0x08, 0x08, 0x09, 0x09, 0x0a, 0x0a, 0x0b, 0x0b,
 		0x08, 0x08, 0x09, 0x09, 0x0a, 0x0a, 0x0b, 0x0b
+	},
+	{ /* 4 4 */
+		0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01,
+		0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01,
+		0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01,
+		0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01,
+		0x08, 0x08, 0x08, 0x08, 0x09, 0x09, 0x09, 0x09,
+		0x08, 0x08, 0x08, 0x08, 0x09, 0x09, 0x09, 0x09,
+		0x08, 0x08, 0x08, 0x08, 0x09, 0x09, 0x09, 0x09,
+		0x08, 0x08, 0x08, 0x08, 0x09, 0x09, 0x09, 0x09,
 	}
 };
 
 
 CTB_INLINE void
+setupscale(struct TJPGRPblc* jpgr, uintxx index, uintxx bsizey, uintxx bsizex)
+{
+	uintxx n;
+	uintxx j;
+	uintxx y;
+	uintxx x;
+	uintxx ys;
+	uintxx xs;
+	uintxx rumode;
+	uintxx totaly;
+	uintxx totalx;
+	struct TJPGComponent* c;
+	const uintxx s[] = {
+		0x00, 0x00, 0x01, 0x00, 0x02
+	};
+
+	/* 1 = 0; 2 = 1; 4 = 3 */
+	rumode = bsizex - 1;
+
+	/* set the lookup-upscale values */
+	totaly = 0x40 >> s[bsizey];
+	totalx = 0x08 >> s[bsizex];
+	ys = PRVT->ysampling;
+	xs = PRVT->xsampling;
+
+	j = 0;
+	n = 0;
+	c = PRVT->components + index;
+	for (y = 0; y < ys; y++) {
+		uintxx ay;
+		uintxx ax;
+		uintxx um;
+
+		um = rumode;
+		ax = 0;
+		ay = (y >> s[bsizey]) * c->xsampling;
+		for (x = 0; x < xs; x++) {
+			uintxx m;
+
+			m = n + ax;
+			c->iblock[j] = (uint8) (ay + (x >> s[bsizex]));
+			c->offset[j] = (uint8) (m & 0x3f);
+
+			ax += totalx;
+			if (ax >= 8)
+				ax -= 8;
+
+			c->rumode[j] = (uint8) um;
+			if (bsizex != 1) {
+				um++;
+				if (bsizex == 2) {
+					if (um > 2) {
+						um = rumode;
+					}
+				}
+			}
+			j++;
+		}
+		n += totaly;
+	}
+	c->umap = upscalemap[((s[bsizey] << 1) + s[bsizey]) + s[bsizex]];
+}
+
+CTB_INLINE void
 initcomponents(struct TJPGRPblc* jpgr, uintxx ys, uintxx xs)
 {
 	uintxx i;
-	uintxx y;
-	uintxx x;
 	uintxx sizey;
 	uintxx sizex;
+	uintxx bsizey;
+	uintxx bsizex;
+	uintxx y;
+	uintxx x;
 	struct TJPGComponent* c;
+	const uintxx s[] = {
+		0x00, 0x00, 0x01, 0x00, 0x02
+	};
 	const uintxx f[] = {
 		0x00, 0x03, 0x04, 0x00, 0x05
 	};
@@ -1219,17 +1298,6 @@ initcomponents(struct TJPGRPblc* jpgr, uintxx ys, uintxx xs)
 	sizey = PRVT->nrows * (ys << 3);
 	sizex = PRVT->ncols * (xs << 3);
 	for (i = 0; i < PRVT->ncomponents; i++) {
-		uintxx totaly;
-		uintxx totalx;
-		uintxx bsizey;
-		uintxx bsizex;
-		uintxx n;
-		uintxx j;
-		uintxx rumode;
-		const uintxx s[] = {
-			0x00, 0x00, 0x01, 0x00, 0x02
-		};
-
 		c = PRVT->components + i;
 
 		/* component size in number of units including padding */
@@ -1237,6 +1305,7 @@ initcomponents(struct TJPGRPblc* jpgr, uintxx ys, uintxx xs)
 		bsizex = sizex >> f[PRVT->xsampling >> s[c->xsampling]];
 		c->irows = bsizey;
 		c->icols = bsizex;
+
 		if (PRVT->isinterleaved) {
 			if (PRVT->ncomponents == 3) {
 				c->ucount = c->ysampling * c->xsampling;
@@ -1254,42 +1323,9 @@ initcomponents(struct TJPGRPblc* jpgr, uintxx ys, uintxx xs)
 		c->nrows = (jpgr->sizey + (bsizey << 3) - 1) >> f[bsizey];
 		c->ncols = (jpgr->sizex + (bsizex << 3) - 1) >> f[bsizex];
 
-		/* 1 = 0; 2 = 1; 4 = 3 */
-		rumode = bsizex - 1;
-
-		/* set the lookup-upscale values */
-		totaly = 0x40 >> s[bsizey];
-		totalx = 0x08 >> s[bsizex];
-		j = 0;
-		n = 0;
-		for (y = 0; y < ys; y++) {
-			uintxx ay;
-			uintxx ax;
-			uintxx um;
-
-			um = rumode;
-			ax = 0;
-			ay = (y >> s[bsizey]) * c->xsampling;
-			for (x = 0; x < xs; x++) {
-				uintxx m;
-
-				m = n + ax;
-				c->iblock[j] = (uint8) (ay + (x >> s[bsizex]));
-				c->offset[j] = (uint8) (m & 0x3f);
-
-				ax += totalx;
-				if (ax >= 8)
-					ax -= 8;
-
-				c->rumode[j] = (uint8) um;
-				if (bsizex != 1)
-					um++;
-				j++;
-			}
-			n += totaly;
+		if (PRVT->ncomponents == 3) {
+			setupscale(jpgr, i, bsizey, bsizex);
 		}
-		n = ((s[bsizey] << 1) + s[bsizey]) + s[bsizex];
-		c->umap = upscalemap[n];
 	}
 
 	/* pixel origin for each block */
@@ -3337,22 +3373,42 @@ readfirstDC(struct TJPGRPblc* jpgr)
 	uintxx totalx;
 	uintxx i;
 	uintxx interval;
-	uintxx sc;
 	struct TJPGComponent* c;
 
 	initbitmode(jpgr);
 	interval = PRVT->rinterval;
 
-	sc = PRVT->nscancomponents == 1;
-	totaly = PRVT->nrows;
-	totalx = PRVT->ncols;
+	if (PRVT->nscancomponents == 1) {
+		c = PRVT->components + PRVT->scancomponent;
 
-	c = PRVT->components + PRVT->scancomponent;
-	if (sc) {
 		totaly = c->nrows;
 		totalx = c->ncols;
+		for (y = 0; y < totaly; y++) {
+			for (x = 0; x < totalx; x++) {
+				if (PRVT->rinterval) {
+					if (interval == 0) {
+						if (checkinterval(jpgr) == 0) {
+							return 0;
+						}
+						initbitmode(jpgr);
+						interval = PRVT->rinterval;
+					}
+					interval -= 1;
+				}
+
+				if (decodefirstDC(jpgr, c, (y * c->icols) + x) == 0) {
+					return 0;
+				}
+			}
+			if (UNLIKELY(overread(jpgr)) == 1) {
+				return 0;
+			}
+		}
+		return 1;
 	}
 
+	totaly = PRVT->nrows;
+	totalx = PRVT->ncols;
 	for (y = 0; y < totaly; y++) {
 		for (x = 0; x < totalx; x++) {
 			if (PRVT->rinterval) {
@@ -3364,13 +3420,6 @@ readfirstDC(struct TJPGRPblc* jpgr)
 					interval = PRVT->rinterval;
 				}
 				interval -= 1;
-			}
-
-			if (sc) {
-				if (decodefirstDC(jpgr, c, (y * totalx) + x) == 0) {
-					return 0;
-				}
-				continue;
 			}
 
 			for (i = 0; i < PRVT->ncomponents; i++) {
@@ -3856,6 +3905,7 @@ jpgr_decodeimg(TJPGReader* jpgr)
 	if (jpgr->isprogressive) {
 		while (jpgr_decodepass(jpgr, 0))
 			;
+
 		if (jpgr->error) {
 			return 0;
 		}
