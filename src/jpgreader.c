@@ -3234,7 +3234,6 @@ decodebaseline(struct TJPGRPblc* jpgr)
 		for (y = 0; y < c1->nrows; y++) {
 			for (x = 0; x < c1->ncols; x++) {
 				if (PRVT->rinterval) {
-					/* TODO: need to add a counter here to count mcus */
 					if (UNLIKELY(interval == 0)) {
 						if (checkinterval(jpgr) == 0) {
 							return 0;
