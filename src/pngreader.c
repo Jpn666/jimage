@@ -739,8 +739,8 @@ parseancillary(struct TPNGRPblc* pngr, uint32 fcc, struct TChunkHead head)
 /* adam 7 pass */
 struct TPassInfo {
 	/* pass origin */
-	uint8 origenx;
-	uint8 origeny;
+	uint8 originx;
+	uint8 originy;
 
 	/* pass step */
 	uint8 stepx;
@@ -757,8 +757,8 @@ static const struct TPassInfo passinfo[] = {
 	{0, 1, 1, 2}
 };
 
-#define ORIGEN_X(PASS) passinfo[PASS].origenx
-#define ORIGEN_Y(PASS) passinfo[PASS].origeny
+#define ORIGIN_X(PASS) passinfo[PASS].originx
+#define ORIGIN_Y(PASS) passinfo[PASS].originy
 
 #define STEP_X(PASS) passinfo[PASS].stepx
 #define STEP_Y(PASS) passinfo[PASS].stepy
@@ -775,8 +775,8 @@ setuppasses(struct TPNGRPblc* pngr)
 		uint8 shiftx[] = {3, 3, 2, 2, 1, 1, 0};
 		uint8 shifty[] = {3, 3, 3, 2, 2, 1, 1};
 
-		sizex = (pngr->sizex + STEP_X(i) - ORIGEN_X(i) - 1) >> shiftx[i];
-		sizey = (pngr->sizey + STEP_Y(i) - ORIGEN_Y(i) - 1) >> shifty[i];
+		sizex = (pngr->sizex + STEP_X(i) - ORIGIN_X(i) - 1) >> shiftx[i];
+		sizey = (pngr->sizey + STEP_Y(i) - ORIGIN_Y(i) - 1) >> shifty[i];
 		if (sizex == 0 || sizey == 0) {
 			PRVT->passrowsize[i] = 0;
 			continue;
@@ -2584,14 +2584,14 @@ pngr_decodepass(TPNGReader* pngr)
 
 	/* target buffer */
 	peloffsety  = PRVT->pixels;
-	peloffsety += ORIGEN_X(i) * PRVT->pelsize;
-	peloffsety += ORIGEN_Y(i) * PRVT->rowsize;
+	peloffsety += ORIGIN_X(i) * PRVT->pelsize;
+	peloffsety += ORIGIN_Y(i) * PRVT->rowsize;
 
 	idxoffsety  = PRVT->idxs;
-	idxoffsety += ORIGEN_X(i);
-	idxoffsety += ORIGEN_Y(i) * pngr->sizex;
+	idxoffsety += ORIGIN_X(i);
+	idxoffsety += ORIGIN_Y(i) * pngr->sizex;
 
-	for (y = ORIGEN_Y(i); y < pngr->sizey; y += STEP_Y(i)) {
+	for (y = ORIGIN_Y(i); y < pngr->sizey; y += STEP_Y(i)) {
 		uint8* rowpointer;
 		uint8* row;
 		uint8* sample;
@@ -2609,7 +2609,7 @@ pngr_decodepass(TPNGReader* pngr)
 				uintxx sx;
 				uintxx sy;
 
-				for (x = ORIGEN_X(i); x < pngr->sizex; x += STEP_X(i)) {
+				for (x = ORIGIN_X(i); x < pngr->sizex; x += STEP_X(i)) {
 					const uintxx passsizex[] = {8, 4, 4, 2, 2, 1, 1};
 					const uintxx passsizey[] = {8, 8, 4, 4, 2, 2, 1};
 					uint8 pixel[8];
@@ -2627,7 +2627,7 @@ pngr_decodepass(TPNGReader* pngr)
 				}
 			}
 			else {
-				for (x = ORIGEN_X(i); x < pngr->sizex; x += STEP_X(i)) {
+				for (x = ORIGIN_X(i); x < pngr->sizex; x += STEP_X(i)) {
 					uint8 pixel[8];
 
 					sample = getsample(PBLC, row, pixel);
@@ -2652,7 +2652,7 @@ pngr_decodepass(TPNGReader* pngr)
 		if (LIKELY(PRVT->idxs != NULL)) {
 			offsetx = idxoffsety;
 
-			for (x = ORIGEN_X(i); x < pngr->sizex; x += STEP_X(i)) {
+			for (x = ORIGIN_X(i); x < pngr->sizex; x += STEP_X(i)) {
 				offsetx[0] = *row++;
 				offsetx += STEP_X(i);
 			}
@@ -2679,8 +2679,8 @@ L_DONE:
 
 #undef STEP_X
 #undef STEP_Y
-#undef ORIGEN_X
-#undef ORIGEN_Y
+#undef ORIGIN_X
+#undef ORIGIN_Y
 
 
 #undef SETERROR
