@@ -255,7 +255,7 @@ pngr_setinputfn(TPNGReader* pngr, TIMGInputFn fn, void* user)
 	if (pngr->state) {
 		SETSTATE(PNGR_BADSTATE);
 		if (pngr->error == 0) {
-			SETERROR(PNGR_EBADUSE);
+			SETERROR(PNGR_EINCORRECTUSE);
 		}
 		return;
 	}
@@ -719,7 +719,7 @@ parseancillary(struct TPNGRPblc* pngr, uint32 fcc, struct TChunkHead head)
 
 	if (head.length) {
 		if (head.length > MAXCHUNKSIZE) {
-			SETERROR(PNGR_ESIZELIMIT);
+			SETERROR(PNGR_ELIMIT);
 			return 0;
 		}
 		if (consumechunk(pngr, head.length) == 0) {
@@ -921,7 +921,7 @@ pngr_initdecoder(TPNGReader* pngr, TImageInfo* info)
 
 	if (pngr->state) {
 		if (pngr->error == 0) {
-			SETERROR(PNGR_EBADUSE);
+			SETERROR(PNGR_EINCORRECTUSE);
 		}
 		goto L_ERROR;
 	}
@@ -965,7 +965,7 @@ pngr_initdecoder(TPNGReader* pngr, TImageInfo* info)
 				return 1;
 			}
 
-			SETERROR(PNGR_ESIZELIMIT);
+			SETERROR(PNGR_ELIMIT);
 		}
 	}
 
@@ -983,7 +983,7 @@ pngr_setbuffers(TPNGReader* pngr, uint8* memory, uint8* pixels,  uint8* idxs)
 	if (pngr->state ^ 1) {
 		SETSTATE(PNGR_BADSTATE);
 		if (pngr->error == 0) {
-			SETERROR(PNGR_EBADUSE);
+			SETERROR(PNGR_EINCORRECTUSE);
 		}
 		return;
 	}
@@ -1761,7 +1761,7 @@ parseICCP(struct TPNGRPblc* pngr, struct TChunkHead head)
 	PRVT->chunkmap.ICCP = 1;
 
 	if (head.length > MAXCHUNKSIZE) {
-		SETERROR(PNGR_ESIZELIMIT);
+		SETERROR(PNGR_ELIMIT);
 		return 0;
 	}
 
@@ -2308,7 +2308,7 @@ pngr_decodeimg(TPNGReader* pngr)
 		else {
 			SETSTATE(PNGR_BADSTATE);
 			if (pngr->error == 0) {
-				SETERROR(PNGR_EBADUSE);
+				SETERROR(PNGR_EINCORRECTUSE);
 			}
 			return 0;
 		}
@@ -2559,7 +2559,7 @@ pngr_decodepass(TPNGReader* pngr)
 		else {
 			SETSTATE(PNGR_BADSTATE);
 			if (pngr->error == 0) {
-				SETERROR(PNGR_EBADUSE);
+				SETERROR(PNGR_EINCORRECTUSE);
 			}
 			return 0;
 		}

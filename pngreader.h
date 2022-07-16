@@ -34,18 +34,21 @@
 /* Error codes */
 typedef enum {
 	PNGR_OK               = 0,
-	PNGR_EBADSTATE        = 1,
-	PNGR_EINVALIDIMAGE    = 2,
-	PNGR_EBADCRC          = 3,
-	PNGR_EBADDATA         = 4,
-	PNGR_EDEFLATE         = 5,
-	PNGR_EOOM             = 6,
-	PNGR_EMISSINGCHUNK    = 7,
-	PNGR_EIOERROR         = 8,
-	PNGR_EBADUSE          = 9,
-	PNGR_ESIZELIMIT       = 10,
-	PNGR_ECHUNKORDER      = 11,
-	PNGR_EDUPLICATEDCHUNK = 12
+	PNGR_EINCORRECTUSE    = 1,
+	PNGR_EIOERROR         = 2,
+	PNGR_EOOM             = 3,
+	PNGR_EBADSTATE        = 4,
+	PNGR_EINVALIDIMAGE    = 5,
+	PNGR_ELIMIT           = 6,
+	PNGR_EBADDATA         = 7,
+	PNGR_EBADFILE         = 8,
+
+	/* Specific errors */
+	PNGR_EDEFLATE         = 10,
+	PNGR_EBADCRC          = 11,
+	PNGR_EMISSINGCHUNK    = 12,
+	PNGR_EDUPLICATEDCHUNK = 13,
+	PNGR_ECHUNKORDER      = 14,
 } ePNGRError;
 
 

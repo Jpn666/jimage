@@ -460,7 +460,7 @@ jpgr_setinputfn(TJPGReader* jpgr, TIMGInputFn fn, void* user)
 	ASSERT(jpgr);
 
 	if (jpgr->state != 0) {
-		SETERROR(JPGR_EBADUSE);
+		SETERROR(JPGR_EINCORRECTUSE);
 		SETSTATE(JPGR_EBADSTATE);
 		return;
 	}
@@ -1814,6 +1814,7 @@ bool
 jpgr_initdecoder(TJPGReader* jpgr, TImageInfo* info)
 {
 	uint16 m;
+	uintxx j;
 	ASSERT(jpgr && info);
 
 	if (jpgr->state) {
@@ -1842,6 +1843,15 @@ jpgr_initdecoder(TJPGReader* jpgr, TImageInfo* info)
 				mode = IMAGE_RGB;
 		}
 		PBLC->colortype = mode;
+
+		PBLC->xsampling[0] = PBLC->ysampling[0] = 0;
+		PBLC->xsampling[1] = PBLC->ysampling[1] = 0;
+		PBLC->xsampling[2] = PBLC->ysampling[2] = 0;
+		PBLC->xsampling[3] = PBLC->ysampling[3] = 0;
+		for (j = 0; PRVT->ncomponents > j; j++) {
+			PBLC->xsampling[j] = PRVT->components[j].xsampling;
+			PBLC->ysampling[j] = PRVT->components[j].ysampling;
+		}
 
 		/* set values */
 		if (PRVT->ncomponents == 3) {
@@ -1884,7 +1894,7 @@ jpgr_setbuffers(TJPGReader* jpgr, uint8* memory, uint8* pixels)
 	if (jpgr->state ^ 1) {
 		SETSTATE(JPGR_BADSTATE);
 		if (jpgr->error == 0) {
-			SETERROR(JPGR_EBADUSE);
+			SETERROR(JPGR_EINCORRECTUSE);
 		}
 		return;
 	}
@@ -3895,7 +3905,7 @@ jpgr_decodeimg(TJPGReader* jpgr)
 		}
 		else {
 			if (jpgr->error == 0) {
-				SETERROR(JPGR_EBADUSE);
+				SETERROR(JPGR_EINCORRECTUSE);
 			}
 			goto L_ERROR;
 		}
@@ -4005,7 +4015,7 @@ jpgr_updateimg(TJPGReader* jpgr)
 	}
 	if (jpgr->state != 4 && jpgr->state != 3) {
 		if (jpgr->error == 0) {
-			SETERROR(JPGR_EBADUSE);
+			SETERROR(JPGR_EINCORRECTUSE);
 			SETSTATE(JPGR_BADSTATE);
 			return;
 		}
@@ -4027,7 +4037,7 @@ jpgr_decodepass(TJPGReader* jpgr, bool update)
 		else {
 			SETSTATE(JPGR_BADSTATE);
 			if (jpgr->error == 0) {
-				SETERROR(JPGR_EBADUSE);
+				SETERROR(JPGR_EINCORRECTUSE);
 			}
 			return 0;
 		}

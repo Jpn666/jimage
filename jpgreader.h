@@ -32,24 +32,26 @@
 /* Error codes */
 typedef enum {
 	JPGR_OK             = 0,
-	JPGR_EBADSTATE      = 1,
-	JPGR_EBADFILE       = 2,
-	JPGR_EINVALIDIMAGE  = 3,
-	JPGR_ENOSUPPORTED   = 4,
-	JPGR_EBADDATA       = 5,
-	JPGR_EIOERROR       = 6,
-	JPGR_EBADHMTABLE    = 7,
-	JPGR_ETABLEID       = 8,
-	JPGR_ENOHMTABLE     = 9,    /* missing huffman table */
-	JPGR_ENOQTTABLE     = 10,   /* missing quantization table */
-	JPGR_EBADCODE       = 11,
-	JPGR_EINVALIDPASS   = 12,
-	JPGR_ESEGMENTORDER  = 13,
-	JPGR_ENOSEGMENT     = 14,   /* missing segment */
-	JPGR_EBADUSE        = 15,
-	JPGR_ELIMIT         = 16,
-	JPGR_EPASSLIMIT     = 17,
-	JPGR_EOOM           = 18
+	JPGR_EINCORRECTUSE  = 1,
+	JPGR_EIOERROR       = 2,
+	JPGR_EOOM           = 3,
+	JPGR_EBADSTATE      = 4,
+	JPGR_EINVALIDIMAGE  = 5,
+	JPGR_ELIMIT         = 6,
+	JPGR_EBADDATA       = 7,
+	JPGR_EBADFILE       = 8,
+
+	/* Specific errors */
+	JPGR_ENOSUPPORTED   = 10,
+	JPGR_EBADHMTABLE    = 11,
+	JPGR_ETABLEID       = 12,
+	JPGR_ENOHMTABLE     = 13,   /* missing huffman table */
+	JPGR_ENOQTTABLE     = 14,   /* missing quantization table */
+	JPGR_EBADCODE       = 15,
+	JPGR_EINVALIDPASS   = 16,
+	JPGR_ESEGMENTORDER  = 17,
+	JPGR_ENOSEGMENT     = 18,   /* missing segment */
+	JPGR_EPASSLIMIT     = 19,
 } eJPGRError;
 
 
@@ -94,12 +96,16 @@ struct TJPGRPblc {
 	/* properties */
 	uintxx isprogressive;
 
-	/* */
+	/* jpeg version and density */
 	uintxx mayorversion;
 	uintxx minorversion;
 	uintxx xdensity;
 	uintxx ydensity;
 	uintxx unit;
+
+	/* image component sampling */
+	uint8 vsampling[4];
+	uint8 hsampling[4];
 
 	/* ICC profile */
 	uint8* iccprofile;
