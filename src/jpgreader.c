@@ -1844,13 +1844,13 @@ jpgr_initdecoder(TJPGReader* jpgr, TImageInfo* info)
 		}
 		PBLC->colortype = mode;
 
-		PBLC->xsampling[0] = PBLC->ysampling[0] = 0;
-		PBLC->xsampling[1] = PBLC->ysampling[1] = 0;
-		PBLC->xsampling[2] = PBLC->ysampling[2] = 0;
-		PBLC->xsampling[3] = PBLC->ysampling[3] = 0;
+		PBLC->vsampling[0] = PBLC->hsampling[0] = 0;
+		PBLC->vsampling[1] = PBLC->hsampling[1] = 0;
+		PBLC->vsampling[2] = PBLC->hsampling[2] = 0;
+		PBLC->vsampling[3] = PBLC->hsampling[3] = 0;
 		for (j = 0; PRVT->ncomponents > j; j++) {
-			PBLC->xsampling[j] = PRVT->components[j].xsampling;
-			PBLC->ysampling[j] = PRVT->components[j].ysampling;
+			PBLC->vsampling[j] = PRVT->components[j].xsampling;
+			PBLC->hsampling[j] = PRVT->components[j].ysampling;
 		}
 
 		/* set values */
