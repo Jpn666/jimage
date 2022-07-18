@@ -1849,8 +1849,8 @@ jpgr_initdecoder(TJPGReader* jpgr, TImageInfo* info)
 		PBLC->vsampling[2] = PBLC->hsampling[2] = 0;
 		PBLC->vsampling[3] = PBLC->hsampling[3] = 0;
 		for (j = 0; PRVT->ncomponents > j; j++) {
-			PBLC->vsampling[j] = PRVT->components[j].xsampling;
-			PBLC->hsampling[j] = PRVT->components[j].ysampling;
+			PBLC->vsampling[j] = (uint8) PRVT->components[j].xsampling;
+			PBLC->hsampling[j] = (uint8) PRVT->components[j].ysampling;
 		}
 
 		/* set values */
