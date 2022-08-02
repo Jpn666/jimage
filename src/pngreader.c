@@ -995,7 +995,7 @@ pngr_setbuffers(TPNGReader* pngr, uint8* memory, uint8* pixels,  uint8* idxs)
 	PRVT->prevrow = PRVT->rbuffers[1];
 	if (pngr->interlace == 0) {
 		for (i = 0; i < PRVT->rowmemory; i++) {
-			PRVT->currrow[i] = 0;
+			PRVT->prevrow[i] = 0;
 		}
 	}
 
