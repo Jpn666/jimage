@@ -19,6 +19,7 @@
  * reference. */
 
 #include "../jpgreader.h"
+#include <string.h>
 
 
 /* segment markers */
