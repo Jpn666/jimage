@@ -89,6 +89,10 @@ struct TPNGRPrvt {
 	uint8* pixels;
 	uint8* idxs;
 
+	/* internal memory */
+	uint8* memory;
+	uintxx memorysize;
+
 	/* progressive pass */
 	uintxx interpolate;
 	uintxx pass;
@@ -119,6 +123,9 @@ struct TPNGRPrvt {
 	uint8* tend;
 	uint8 source[4096];
 	uint8 target[4096];
+
+	/* custom allocator */
+	struct TAllocator* allocator;
 };
 
 
@@ -128,23 +135,48 @@ struct TPNGRPrvt {
 #define PRVT ((struct TPNGRPrvt*) pngr)
 
 
+CTB_INLINE void*
+reserve(struct TPNGRPrvt* p, uintxx amount)
+{
+	if (p->allocator) {
+		return p->allocator->reserve(p->allocator->user, amount);
+	}
+	return CTB_MALLOC(amount);
+}
+
+CTB_INLINE void
+release(struct TPNGRPrvt* p, void* memory)
+{
+	if (p->allocator) {
+		p->allocator->release(p->allocator->user, memory);
+		return;
+	}
+	CTB_FREE(memory);
+}
+
 TPNGReader*
-pngr_create(ePNGRFlags flags)
+pngr_create(ePNGRFlags flags, TAllocator* allocator)
 {
 	struct TPNGRPblc* pngr;
 
-	pngr = CTB_MALLOC(sizeof(struct TPNGRPrvt));
+	if (allocator) {
+		pngr = allocator->reserve(allocator->user, sizeof(struct TPNGRPrvt));
+	}
+	else {
+		pngr = CTB_MALLOC(sizeof(struct TPNGRPrvt));
+	}
 	if (pngr == NULL) {
 		return NULL;
 	}
+	PRVT->allocator  = allocator;
 
-	PRVT->iccpmemory = NULL;
-
-	if ((PRVT->inflator = inflator_create(NULL)) == NULL) {
-		CTB_FREE(pngr);
+	if ((PRVT->inflator = inflator_create(allocator)) == NULL) {
+		release(PRVT, pngr);
 		return NULL;
 	}
-	pngr_reset(pngr);
+	PRVT->iccpmemory = NULL;
+	PRVT->memory     = NULL;
+	pngr_reset(pngr, 0);
 
 	PBLC->flags = flags;
 	return pngr;
@@ -155,7 +187,7 @@ pngr_create(ePNGRFlags flags)
 #define SETSTATE(STATE) (PBLC->state = (STATE))
 
 void
-pngr_reset(TPNGReader* pngr)
+pngr_reset(TPNGReader* pngr, bool fullreset)
 {
 	uintxx i;
 	ASSERT(pngr);
@@ -225,7 +257,25 @@ pngr_reset(TPNGReader* pngr)
 
 	PRVT->pixels = NULL;
 	PRVT->idxs   = NULL;
-	if (PRVT->iccpmemory == NULL) {
+	if (PRVT->memory) {
+		if (fullreset) {
+			release(PRVT, PRVT->memory);
+			PRVT->memory     = NULL;
+			PRVT->memorysize = 0;
+		}
+	}
+	else {
+		PRVT->memorysize = 0;
+	}
+
+	if (PRVT->iccpmemory) {
+		if (fullreset) {
+			release(PRVT, PRVT->iccpmemory);
+			PRVT->iccpmemory = NULL;
+			PRVT->iccpsize   = 0;
+		}
+	}
+	else {
 		PRVT->iccpsize = 0;
 	}
 
@@ -242,11 +292,15 @@ pngr_destroy(TPNGReader* pngr)
 	if (pngr == NULL) {
 		return;
 	}
-	if(PRVT->iccpmemory) {
-		CTB_FREE(PRVT->iccpmemory);
+
+	if (PRVT->memory) {
+		release(PRVT, PRVT->memory);
+	}
+	if (PRVT->iccpmemory) {
+		release(PRVT, PRVT->iccpmemory);
 	}
 	inflator_destroy(PRVT->inflator);
-	CTB_FREE(PBLC);
+	release(PRVT, PBLC);
 }
 
 void
@@ -962,7 +1016,6 @@ pngr_initdecoder(TPNGReader* pngr, TImageInfo* info)
 
 				/* ready to start decoding */
 				SETSTATE(1);
-
 				PBLC->requiredmemory = PRVT->rowmemory << 1;
 				return 1;
 			}
@@ -977,10 +1030,11 @@ L_ERROR:
 }
 
 void
-pngr_setbuffers(TPNGReader* pngr, uint8* memory, uint8* pixels,  uint8* idxs)
+pngr_setbuffers(TPNGReader* pngr, uint8* pixels, uint8* idxs)
 {
 	uintxx i;
-	ASSERT(pngr && memory);
+	uint8* memory;
+	ASSERT(pngr);
 
 	if (pngr->state ^ 1) {
 		SETSTATE(PNGR_BADSTATE);
@@ -988,6 +1042,28 @@ pngr_setbuffers(TPNGReader* pngr, uint8* memory, uint8* pixels,  uint8* idxs)
 			SETERROR(PNGR_EINCORRECTUSE);
 		}
 		return;
+	}
+
+	memory = NULL;
+	if (PRVT->memory) {
+		if (PRVT->memorysize > PBLC->requiredmemory) {
+			memory = PRVT->memory;
+		}
+		else {
+			release(PRVT, PRVT->memory);
+			PRVT->memory     = NULL;
+			PRVT->memorysize = 0;
+		}
+	}
+
+	if (memory == NULL) {
+		memory = reserve(PRVT, PBLC->requiredmemory);
+		if (memory == NULL) {
+			SETSTATE(PNGR_BADSTATE);
+			SETERROR(PNGR_EOOM);
+			return;
+		}
+		PRVT->memory = memory;
 	}
 
 	PRVT->rbuffers[0] = memory;
@@ -1628,7 +1704,12 @@ readiccprofile(struct TPNGRPblc* pngr, uintxx size)
 			if (size > PRVT->iccpsize) {
 				uint8* buffer;
 
-				buffer = CTB_REALLOC(PRVT->iccpmemory, total);
+				if (PRVT->iccpmemory) {
+					release(PRVT, PRVT->iccpmemory);
+					PRVT->iccpmemory = NULL;
+					PRVT->iccpsize   = 0;
+				}
+				buffer = reserve(PRVT, total);
 				if (buffer == NULL) {
 					SETERROR(PNGR_EOOM);
 					return 0;

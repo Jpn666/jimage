@@ -155,6 +155,14 @@ struct TJPGRPrvt {
 	/* public fields */
 	struct TJPGRPblc hidden;
 
+	/* custom allocator */
+	struct TAllocator* allocator;
+
+	/* internal memory */
+	uint8* memory;
+	uintxx memorysize;
+
+	/* image properties */
 	uintxx ysampling;
 	uintxx xsampling;
 	uint32 issubsampled;
@@ -318,16 +326,41 @@ struct TJPGRPrvt {
 #define PRVT ((struct TJPGRPrvt*) jpgr)
 
 
+CTB_INLINE void*
+reserve(struct TJPGRPrvt* p, uintxx amount)
+{
+	if (p->allocator) {
+		return p->allocator->reserve(p->allocator->user, amount);
+	}
+	return CTB_MALLOC(amount);
+}
+
+CTB_INLINE void
+release(struct TJPGRPrvt* p, void* memory)
+{
+	if (p->allocator) {
+		p->allocator->release(p->allocator->user, memory);
+		return;
+	}
+	CTB_FREE(memory);
+}
+
 TJPGReader*
-jpgr_create(eJPGRFlags flags)
+jpgr_create(eJPGRFlags flags, TAllocator* allocator)
 {
 	uintxx i;
 	struct TJPGRPblc* jpgr;
 
-	jpgr = CTB_MALLOC(sizeof(struct TJPGRPrvt));
+	if (allocator) {
+		jpgr = allocator->reserve(allocator->user, sizeof(struct TJPGRPrvt));
+	}
+	else {
+		jpgr = CTB_MALLOC(sizeof(struct TJPGRPrvt));
+	}
 	if (jpgr == NULL) {
 		return NULL;
 	}
+	PRVT->allocator = allocator;
 
 	/* align the quantization tables to 16 (we need this to use SIMD) */
 	for (i = 0; i < 4; i++) {
@@ -337,8 +370,9 @@ jpgr_create(eJPGRFlags flags)
 		qtable->values = (void*) ((((uintxx) qtable->storage) | 15) + 1);
 	}
 
+	PRVT->memory     = NULL;
 	PRVT->iccpmemory = NULL;
-	jpgr_reset(jpgr);
+	jpgr_reset(jpgr, 0);
 
 	PBLC->flags = flags;
 	return jpgr;
@@ -348,7 +382,7 @@ jpgr_create(eJPGRFlags flags)
 #define BUFFERSIZE (sizeof(((struct TJPGRPrvt*) NULL)->source))
 
 void
-jpgr_reset(TJPGReader* jpgr)
+jpgr_reset(TJPGReader* jpgr, bool fullreset)
 {
 	uintxx i;
 	struct TJPGComponent* c;
@@ -380,9 +414,28 @@ jpgr_reset(TJPGReader* jpgr)
 	PRVT->isinterleaved = 0;
 	PRVT->issubsampled  = 0;
 
-	if (PRVT->iccpmemory == NULL) {
+	if (PRVT->memory) {
+		if (fullreset) {
+			release(PRVT, PRVT->memory);
+			PRVT->memory     = NULL;
+			PRVT->memorysize = 0;
+		}
+	}
+	else {
+		PRVT->memorysize = 0;
+	}
+
+	if (PRVT->iccpmemory) {
+		if (fullreset) {
+			release(PRVT, PRVT->iccpmemory);
+			PRVT->iccpmemory = NULL;
+			PRVT->iccpsize   = 0;
+		}
+	}
+	else {
 		PRVT->iccpsize = 0;
 	}
+
 	PRVT->iccpappend = NULL;
 	PRVT->iccpmode  = 0;
 	PRVT->iccptotal = 0;
@@ -445,12 +498,16 @@ void
 jpgr_destroy(TJPGReader* jpgr)
 {
 	if (jpgr) {
-		if (PRVT->iccpmemory != NULL) {
-			CTB_FREE(PRVT->iccpmemory);
+		if (PRVT->memory) {
+			release(PRVT, PRVT->memory);
 		}
-		CTB_FREE(PBLC);
+		if (PRVT->iccpmemory) {
+			release(PRVT, PRVT->iccpmemory);
+		}
+		release(PRVT, PBLC);
 	}
 }
+
 
 #define SETERROR(ERROR) (PBLC->error = (ERROR))
 #define SETSTATE(STATE) (PBLC->state = (STATE))
@@ -892,7 +949,12 @@ primeiccpchunk(struct TJPGRPblc* jpgr, uintxx r)
 	}
 
 	if (total > PRVT->iccpsize) {
-		buffer = CTB_REALLOC(PRVT->iccpmemory, total);
+		if (PRVT->iccpmemory) {
+			release(PRVT, PRVT->iccpmemory);
+			PRVT->iccpmemory = NULL;
+			PRVT->iccpsize   = 0;
+		}
+		buffer = reserve(PRVT, total);
 		if (buffer == NULL) {
 			SETERROR(JPGR_EOOM);
 			return 0;
@@ -1885,12 +1947,13 @@ L_ERROR:
 }
 
 void
-jpgr_setbuffers(TJPGReader* jpgr, uint8* memory, uint8* pixels)
+jpgr_setbuffers(TJPGReader* jpgr, uint8* pixels)
 {
 	uintxx i;
 	uintxx j;
+	uint8* memory;
 	struct TJPGComponent* c;
-	ASSERT(jpgr && memory);
+	ASSERT(jpgr);
 
 	if (jpgr->state ^ 1) {
 		SETSTATE(JPGR_BADSTATE);
@@ -1898,6 +1961,28 @@ jpgr_setbuffers(TJPGReader* jpgr, uint8* memory, uint8* pixels)
 			SETERROR(JPGR_EINCORRECTUSE);
 		}
 		return;
+	}
+
+	memory = NULL;
+	if (PRVT->memory) {
+		if (PRVT->memorysize > PBLC->requiredmemory) {
+			memory = PRVT->memory;
+		}
+		else {
+			release(PRVT, PRVT->memory);
+			PRVT->memory     = NULL;
+			PRVT->memorysize = 0;
+		}
+	}
+
+	if (memory == NULL) {
+		memory = reserve(PRVT, PBLC->requiredmemory);
+		if (memory == NULL) {
+			SETSTATE(JPGR_BADSTATE);
+			SETERROR(JPGR_EOOM);
+			return;
+		}
+		PRVT->memory = memory;
 	}
 
 	memory = (uint8*) ((((uintxx) memory) | 15) + 1);
@@ -1945,7 +2030,6 @@ jpgr_setbuffers(TJPGReader* jpgr, uint8* memory, uint8* pixels)
 		memset(pixels, 0, jpgr->sizey * jpgr->sizex * PRVT->ncomponents);
 	}
 	SETSTATE(2);
-
 }
 
 /*

@@ -117,7 +117,7 @@ typedef const struct TJPGRPblc TJPGReader;
 
 /*
  * */
-TJPGReader* jpgr_create(eJPGRFlags flags);
+TJPGReader* jpgr_create(eJPGRFlags flags, TAllocator* allocator);
 
 /*
  * Destroys (and deallocates) the given JPG reader. */
@@ -125,7 +125,7 @@ void jpgr_destroy(TJPGReader*);
 
 /*
  * Resets the reader. */
-void jpgr_reset(TJPGReader*);
+void jpgr_reset(TJPGReader*, bool fullreset);
 
 /*
  * Sets the input function used to read the image data. */
@@ -137,9 +137,8 @@ void jpgr_setinputfn(TJPGReader*, TIMGInputFn fn, void* user);
 bool jpgr_initdecoder(TJPGReader*, TImageInfo* info);
 
 /*
- * Sets the internal working memory and the target memory buffer for the
- * decoded image (the complete image). */
-void jpgr_setbuffers(TJPGReader*, uint8* memory, uint8* pixels);
+ * Sets the target memory buffer for the decoded image (the complete image). */
+void jpgr_setbuffers(TJPGReader*, uint8* pixels);
 
 /*
  * Decodes the image to the image buffer (if set). */

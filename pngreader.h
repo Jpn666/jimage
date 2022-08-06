@@ -141,7 +141,7 @@ typedef const struct TPNGRPblc TPNGReader;
 
 /*
  * */
-TPNGReader* pngr_create(ePNGRFlags flags);
+TPNGReader* pngr_create(ePNGRFlags flags, TAllocator* allocator);
 
 /*
  * Destroys (and deallocates) the given PNG reader. */
@@ -149,7 +149,7 @@ void pngr_destroy(TPNGReader*);
 
 /*
  * Resets the reader. */
-void pngr_reset(TPNGReader*);
+void pngr_reset(TPNGReader*, bool fullreset);
 
 /*
  * Sets the input function. */
@@ -161,10 +161,10 @@ void pngr_setinputfn(TPNGReader*, TIMGInputFn fn, void* user);
 uintxx pngr_initdecoder(TPNGReader*, TImageInfo* info);
 
 /*
- * Sets the internal working memory, the target memory buffer for the decoded
- * image and the index buffer for indexed images, both (the pixel buffer and
- * the index buffer) can be NULL. */
-void pngr_setbuffers(TPNGReader*, uint8* memory, uint8* pixels, uint8* idxs);
+ * Sets the target memory buffer for the decoded image and the index buffer
+ * for indexed images, both (the pixel buffer and the index buffer) can be
+ * NULL. */
+void pngr_setbuffers(TPNGReader*, uint8* pixels, uint8* idxs);
 
 /*
  * Decodes the next pass of a progressive image, returns the next pass or zero
