@@ -27,8 +27,6 @@
 	#include <crypto/crc32.h>
 #endif
 
-#include <string.h>
-
 
 /* chunk size limit for ICCP, ITXT, ZTXT and TEXT chunks or unknown
  * chunks (8MB) */
