@@ -279,6 +279,8 @@ pngr_reset(TPNGReader* pngr, bool fullreset)
 
 	PRVT->inputsize = 0;
 	PRVT->remaining = 0;
+	PRVT->source[0] = 0xff;
+
 	PRVT->payload = NULL;
 	PRVT->inputfn = NULL;
 	inflator_reset(PRVT->inflator);
@@ -556,16 +558,17 @@ CTB_INLINE bool
 readzlibheader(struct TPNGRPblc* pngr)
 {
 	uintxx i;
+	uintxx cm;
+	uintxx ci;
+	uint8 s[2];
 
 	/* since it's part of an IDAT chuck these 2 bytes can be on diferent
 	 * chunks */
-	for (i = 2; i;) {
+	for (i = 0; i < 2;) {
 		if (PRVT->remaining) {
-			uint8 s[2];
-
-			if (readinput(pngr, s, 1)) {
+			if (readinput(pngr, s + i, 1)) {
 				PRVT->remaining--;
-				i--;
+				i++;
 				continue;
 			}
 			return 0;
@@ -590,7 +593,28 @@ readzlibheader(struct TPNGRPblc* pngr)
 			PRVT->remaining = head.length;
 		}
 	}
-	return 1;
+
+	/* check the zlib header */
+	cm = (s[0] >> 0) & 0x0f;
+	ci = (s[0] >> 4) & 0x0f;
+	if (cm == 0 && ci <= 7) {
+		uintxx fdict;
+		uintxx fchck;
+
+		fchck = (s[0] << 8) | s[1];
+		if (fchck % 31) {
+			goto L_ERROR;
+		}
+		fdict = (b >> 5) & 0x01;
+		if (fdict) {
+			goto L_ERROR;
+		}
+		return 1;
+	}
+
+L_ERROR:
+	SETERROR(PNGR_EBADDATA);
+	return 0;
 }
 
 
@@ -1023,6 +1047,8 @@ pngr_initdecoder(TPNGReader* pngr, TImageInfo* info)
 	}
 
 L_ERROR:
+	if (pngr->error == 0)
+		SETERROR(PNGR_EBADDATA);
 	SETSTATE(PNGR_BADSTATE);
 	return 0;
 }
@@ -2425,7 +2451,6 @@ pngr_decodeimg(TPNGReader* pngr)
 			return 0;
 		}
 
-
 		if (LIKELY(pixels != NULL)) {
 			if (UNLIKELY(pngr->colortype == 3)) {
 				uintxx entry;
@@ -2434,6 +2459,7 @@ pngr_decodeimg(TPNGReader* pngr)
 				if (PRVT->hasalpha) {
 					for (j = 0; j < pngr->sizex; j++) {
 						entry = row[j] * 4;
+
 						*pixels++ = pngr->palette[entry + 0];
 						*pixels++ = pngr->palette[entry + 1];
 						*pixels++ = pngr->palette[entry + 2];
@@ -2567,23 +2593,18 @@ getsample(struct TPNGRPblc* pngr, uint8* source, uint8* pixel)
 
 #if CTB_IS_LITTLEENDIAN
 	if (pngr->depth == 16) {
-		uint16* target;
+		uint16* p;
 
-		target = (void*) pixel;
+		p = (void*) pixel;
 		switch (PRVT->pelsize) {
-			case 8:
-				target[3] = (source[7] << 0x08) | source[6];  /* fallthrough */
-			case 6:
-				target[2] = (source[5] << 0x08) | source[4];  /* fallthrough */
-			case 4:
-				target[1] = (source[3] << 0x08) | source[2];  /* fallthrough */
-			case 2:
-				target[0] = (source[1] << 0x08) | source[0];
+			case 8: p[3] = (source[7] << 0x08) | source[6];  /* fallthrough */
+			case 6: p[2] = (source[5] << 0x08) | source[4];  /* fallthrough */
+			case 4: p[1] = (source[3] << 0x08) | source[2];  /* fallthrough */
+			case 2: p[0] = (source[1] << 0x08) | source[0];
 		}
 		return pixel;
 	}
 #endif
-
 	return source;
 }
 

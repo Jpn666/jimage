@@ -487,6 +487,7 @@ jpgr_reset(TJPGReader* jpgr, bool fullreset)
 
 	PRVT->segmentmap = (struct TJPGRSegmentMap) {0, 0, 0};
 
+	PRVT->source[0] = 0x00;
 	PRVT->sourceend = PRVT->source + BUFFERSIZE;
 	PRVT->bgn = PRVT->source;
 	PRVT->end = PRVT->source;
