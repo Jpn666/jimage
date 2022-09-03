@@ -605,7 +605,7 @@ readzlibheader(struct TPNGRPblc* pngr)
 		if (fchck % 31) {
 			goto L_ERROR;
 		}
-		fdict = (b >> 5) & 0x01;
+		fdict = (s[1] >> 5) & 0x01;
 		if (fdict) {
 			goto L_ERROR;
 		}
