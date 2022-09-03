@@ -597,7 +597,7 @@ readzlibheader(struct TPNGRPblc* pngr)
 	/* check the zlib header */
 	cm = (s[0] >> 0) & 0x0f;
 	ci = (s[0] >> 4) & 0x0f;
-	if (cm == 0 && ci <= 7) {
+	if (cm == 8 && ci <= 7) {
 		uintxx fdict;
 		uintxx fchck;
 
