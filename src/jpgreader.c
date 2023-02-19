@@ -2955,9 +2955,9 @@ setrow3(int16* r1, int16* r2, int16* r3, uint8* row, uintxx transform)
 				else
 					b = 0;
 			}
-			row[0] = r;
-			row[1] = g;
-			row[2] = b;
+			row[0] = (uint8) r;
+			row[1] = (uint8) g;
+			row[2] = (uint8) b;
 		}
 		return;
 	}
@@ -2985,9 +2985,9 @@ setrow3(int16* r1, int16* r2, int16* r3, uint8* row, uintxx transform)
 			else
 				b = 0;
 		}
-		row[0] = r;
-		row[1] = g;
-		row[2] = b;
+		row[0] = (uint8) r;
+		row[1] = (uint8) g;
+		row[2] = (uint8) b;
 	}
 }
 
