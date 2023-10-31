@@ -2,7 +2,6 @@
 *.d
 
 # Object files
-*.o
 *.ko
 *.obj
 *.elf
@@ -50,9 +49,3 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
-
-
-!*/src/asm/*/*.o
-!*/*/src/asm/*/*.o
-!*/src/asm/*.o
-!*/*/src/asm/*.o

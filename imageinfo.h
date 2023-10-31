@@ -75,7 +75,7 @@ CTB_INLINE uintxx
 imginfo_getpelsize(TImageInfo* imginfo)
 {
 	uintxx pelsize;
-	ASSERT(imginfo);
+	CTB_ASSERT(imginfo);
 
 	pelsize = 0;
 	switch (imginfo->colortype) {
@@ -92,7 +92,7 @@ imginfo_getpelsize(TImageInfo* imginfo)
 CTB_INLINE uintxx
 imginfo_getrowsize(TImageInfo* imginfo)
 {
-	ASSERT(imginfo);
+	CTB_ASSERT(imginfo);
 
 	return imginfo_getpelsize(imginfo) * imginfo->sizex;
 }

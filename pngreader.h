@@ -223,7 +223,7 @@ CTB_INLINE ePNGRState pngr_getstate(TPNGReader*, uintxx* error, uintxx* wrnns);
 CTB_INLINE bool
 pngr_isprogressive(TPNGReader* pngr)
 {
-	ASSERT(pngr);
+	CTB_ASSERT(pngr);
 
 	return pngr->interlace;
 }
@@ -231,7 +231,7 @@ pngr_isprogressive(TPNGReader* pngr)
 CTB_INLINE bool
 pngr_isindexed(TPNGReader* pngr)
 {
-	ASSERT(pngr);
+	CTB_ASSERT(pngr);
 
 	return pngr->colortype == 3;
 }
@@ -239,7 +239,7 @@ pngr_isindexed(TPNGReader* pngr)
 CTB_INLINE bool
 pngr_haspropertyof(TPNGReader* pngr, eTPNGRChunk chunks)
 {
-	ASSERT(pngr);
+	CTB_ASSERT(pngr);
 
 	return (pngr->properties & chunks) != 0;
 }
@@ -247,7 +247,7 @@ pngr_haspropertyof(TPNGReader* pngr, eTPNGRChunk chunks)
 CTB_INLINE ePNGRState
 pngr_getstate(TPNGReader* pngr, uintxx* error, uintxx* wrnns)
 {
-	ASSERT(pngr);
+	CTB_ASSERT(pngr);
 
 	if (wrnns)
 		wrnns[0] = pngr->warnings;

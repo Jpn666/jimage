@@ -19,6 +19,7 @@
  * reference. */
 
 #include "../jpgreader.h"
+#include <cmemory.h>
 
 
 /* segment markers */
@@ -326,22 +327,22 @@ struct TJPGRPrvt {
 
 
 CTB_INLINE void*
-reserve(struct TJPGRPrvt* p, uintxx amount)
+_reserve(struct TJPGRPrvt* p, uintxx amount)
 {
 	if (p->allocator) {
 		return p->allocator->reserve(p->allocator->user, amount);
 	}
-	return CTB_MALLOC(amount);
+	return ctb_reserve(amount);
 }
 
 CTB_INLINE void
-release(struct TJPGRPrvt* p, void* memory)
+_release(struct TJPGRPrvt* p, void* memory)
 {
 	if (p->allocator) {
 		p->allocator->release(p->allocator->user, memory);
 		return;
 	}
-	CTB_FREE(memory);
+	ctb_release(memory);
 }
 
 TJPGReader*
@@ -354,7 +355,7 @@ jpgr_create(eJPGRFlags flags, TAllocator* allocator)
 		jpgr = allocator->reserve(allocator->user, sizeof(struct TJPGRPrvt));
 	}
 	else {
-		jpgr = CTB_MALLOC(sizeof(struct TJPGRPrvt));
+		jpgr = ctb_reserve(sizeof(struct TJPGRPrvt));
 	}
 	if (jpgr == NULL) {
 		return NULL;
@@ -385,7 +386,7 @@ jpgr_reset(TJPGReader* jpgr, bool fullreset)
 {
 	uintxx i;
 	struct TJPGComponent* c;
-	ASSERT(jpgr);
+	CTB_ASSERT(jpgr);
 
 	/* public fields */
 	PBLC->state = 0;
@@ -415,7 +416,7 @@ jpgr_reset(TJPGReader* jpgr, bool fullreset)
 
 	if (PRVT->memory) {
 		if (fullreset) {
-			release(PRVT, PRVT->memory);
+			_release(PRVT, PRVT->memory);
 			PRVT->memory     = NULL;
 			PRVT->memorysize = 0;
 		}
@@ -426,7 +427,7 @@ jpgr_reset(TJPGReader* jpgr, bool fullreset)
 
 	if (PRVT->iccpmemory) {
 		if (fullreset) {
-			release(PRVT, PRVT->iccpmemory);
+			_release(PRVT, PRVT->iccpmemory);
 			PRVT->iccpmemory = NULL;
 			PRVT->iccpsize   = 0;
 		}
@@ -499,12 +500,12 @@ jpgr_destroy(TJPGReader* jpgr)
 {
 	if (jpgr) {
 		if (PRVT->memory) {
-			release(PRVT, PRVT->memory);
+			_release(PRVT, PRVT->memory);
 		}
 		if (PRVT->iccpmemory) {
-			release(PRVT, PRVT->iccpmemory);
+			_release(PRVT, PRVT->iccpmemory);
 		}
-		release(PRVT, PBLC);
+		_release(PRVT, PBLC);
 	}
 }
 
@@ -515,7 +516,7 @@ jpgr_destroy(TJPGReader* jpgr)
 void
 jpgr_setinputfn(TJPGReader* jpgr, TIMGInputFn fn, void* user)
 {
-	ASSERT(jpgr);
+	CTB_ASSERT(jpgr);
 
 	if (jpgr->state != 0) {
 		SETERROR(JPGR_EINCORRECTUSE);
@@ -539,7 +540,11 @@ readmore(struct TJPGRPblc* jpgr, uintxx avaible, uintxx amount)
 	remaining = (uintxx) (PRVT->sourceend - PRVT->end);
 	if (LIKELY(remaining + avaible < amount)) {
 		if (avaible) {
-			memmove(PRVT->source, PRVT->bgn, avaible);
+			uintxx j;
+
+			for (j = 0; j < avaible; j++) {
+				PRVT->source[j] = PRVT->bgn[j];
+			}
 		}
 
 		PRVT->bgn = PRVT->source;
@@ -897,7 +902,7 @@ readiccp(struct TJPGRPblc* jpgr, uintxx remaining)
 			return 0;
 		}
 
-		memcpy(bgn, s, total);
+		ctb_memcpy(bgn, s, total);
 		bgn += total;
 	}
 	return r;
@@ -950,11 +955,11 @@ primeiccpchunk(struct TJPGRPblc* jpgr, uintxx r)
 
 	if (total > PRVT->iccpsize) {
 		if (PRVT->iccpmemory) {
-			release(PRVT, PRVT->iccpmemory);
+			_release(PRVT, PRVT->iccpmemory);
 			PRVT->iccpmemory = NULL;
 			PRVT->iccpsize   = 0;
 		}
-		buffer = reserve(PRVT, total);
+		buffer = _reserve(PRVT, total);
 		if (buffer == NULL) {
 			SETERROR(JPGR_EOOM);
 			return 0;
@@ -968,7 +973,7 @@ primeiccpchunk(struct TJPGRPblc* jpgr, uintxx r)
 	PRVT->iccpappend = PRVT->iccpmemory;
 
 	/* copy the header to the profile memory */
-	memcpy(PRVT->iccpappend, s, 0x80);
+	ctb_memcpy(PRVT->iccpappend, s, 0x80);
 	PRVT->iccpappend += 0x80;
 	return 1;
 }
@@ -1422,6 +1427,7 @@ initcomponents(struct TJPGRPblc* jpgr, uintxx ys, uintxx xs)
 CTB_INLINE uintxx
 checksize(struct TJPGRPblc* jpgr)
 {
+	/* !FIXME: ckdint */
 	uintxx s;
 
 	s = jpgr->sizey * jpgr->sizex;
@@ -1699,6 +1705,7 @@ readpassinfo(struct TJPGRPblc* jpgr, uint8* s)
 CTB_INLINE uintxx
 setrequiredmemory(struct TJPGRPblc* jpgr)
 {
+	/* !FIXME: ckdint */
 	uintxx i;
 	uint64 total;
 	struct TJPGComponent* c;
@@ -1878,7 +1885,7 @@ jpgr_initdecoder(TJPGReader* jpgr, TImageInfo* info)
 {
 	uint16 m;
 	uintxx j;
-	ASSERT(jpgr && info);
+	CTB_ASSERT(jpgr && info);
 
 	if (jpgr->state) {
 		goto L_ERROR;
@@ -1953,7 +1960,7 @@ jpgr_setbuffers(TJPGReader* jpgr, uint8* pixels)
 	uintxx j;
 	uint8* memory;
 	struct TJPGComponent* c;
-	ASSERT(jpgr);
+	CTB_ASSERT(jpgr);
 
 	if (jpgr->state ^ 1) {
 		SETSTATE(JPGR_BADSTATE);
@@ -1969,14 +1976,14 @@ jpgr_setbuffers(TJPGReader* jpgr, uint8* pixels)
 			memory = PRVT->memory;
 		}
 		else {
-			release(PRVT, PRVT->memory);
+			_release(PRVT, PRVT->memory);
 			PRVT->memory     = NULL;
 			PRVT->memorysize = 0;
 		}
 	}
 
 	if (memory == NULL) {
-		memory = reserve(PRVT, PBLC->requiredmemory);
+		memory = _reserve(PRVT, PBLC->requiredmemory);
 		if (memory == NULL) {
 			SETSTATE(JPGR_BADSTATE);
 			SETERROR(JPGR_EOOM);
@@ -2027,7 +2034,7 @@ jpgr_setbuffers(TJPGReader* jpgr, uint8* pixels)
 
 	PRVT->pixels = pixels;
 	if (jpgr->isprogressive && pixels) {
-		memset(pixels, 0, jpgr->sizey * jpgr->sizex * PRVT->ncomponents);
+		ctb_memset(pixels, 0, jpgr->sizey * jpgr->sizex * PRVT->ncomponents);
 	}
 	SETSTATE(2);
 }
@@ -2466,7 +2473,7 @@ decodeblock(struct TJPGRPblc* jpgr, struct TJPGComponent* c, int16* block)
 	r = 0;
 
 	/* sets the cofficients to zero */
-	memset(block, 0, 64 * sizeof(block[0]));
+	ctb_memset(block, 0, 64 * sizeof(block[0]));
 
 	/* DC cofficient decoding */
 	if (bc < 16) {
@@ -2955,9 +2962,9 @@ setrow3(int16* r1, int16* r2, int16* r3, uint8* row, uintxx transform)
 				else
 					b = 0;
 			}
-			row[0] = r;
-			row[1] = g;
-			row[2] = b;
+			row[0] = (uint8) r;
+			row[1] = (uint8) g;
+			row[2] = (uint8) b;
 		}
 		return;
 	}
@@ -2985,9 +2992,9 @@ setrow3(int16* r1, int16* r2, int16* r3, uint8* row, uintxx transform)
 			else
 				b = 0;
 		}
-		row[0] = r;
-		row[1] = g;
-		row[2] = b;
+		row[0] = (uint8) r;
+		row[1] = (uint8) g;
+		row[2] = (uint8) b;
 	}
 }
 
@@ -3439,7 +3446,7 @@ decodefirstDC(struct TJPGRPblc* jpgr, struct TJPGComponent* c, uintxx index)
 	int16* block;
 
 	block = c->scan + (index << 6);
-	memset(block, 0, 64 * sizeof(block[0]));
+	ctb_memset(block, 0, 64 * sizeof(block[0]));
 
 	ensurebits(jpgr, 16);
 	s = decodesymbol((void*) c->dctable, getbits(jpgr, 16));
@@ -3982,7 +3989,7 @@ jpgr_decodeimg(TJPGReader* jpgr)
 {
 	uintxx r;
 	uintxx i;
-	ASSERT(jpgr);
+	CTB_ASSERT(jpgr);
 
 	if (jpgr->state ^ 3) {
 		if (jpgr->state == 2) {
@@ -4093,7 +4100,7 @@ L_ERROR:
 void
 jpgr_updateimg(TJPGReader* jpgr)
 {
-	ASSERT(jpgr);
+	CTB_ASSERT(jpgr);
 
 	if (jpgr->isprogressive == 0) {
 		return;

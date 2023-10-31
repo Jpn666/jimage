@@ -176,7 +176,7 @@ CTB_INLINE eJPGRState jpgr_getstate(TJPGReader*, uintxx* error, uintxx* wrnns);
 CTB_INLINE bool
 jpgr_isprogressive(TJPGReader* jpgr)
 {
-	ASSERT(jpgr);
+	CTB_ASSERT(jpgr);
 
 	return (bool) jpgr->isprogressive;
 }
@@ -184,7 +184,7 @@ jpgr_isprogressive(TJPGReader* jpgr)
 CTB_INLINE eJPGRState
 jpgr_getstate(TJPGReader* jpgr, uintxx* error, uintxx* wrnns)
 {
-	ASSERT(jpgr);
+	CTB_ASSERT(jpgr);
 
 	if (wrnns)
 		wrnns[0] = jpgr->warnings;

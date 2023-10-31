@@ -16,6 +16,8 @@
 
 #include "../pngreader.h"
 #include <inflator.h>
+#include <cmemory.h>
+
 
 #if defined(PNGR_CFG_DOCRC)
 	#define DOCRC 1
@@ -134,22 +136,22 @@ struct TPNGRPrvt {
 
 
 CTB_INLINE void*
-reserve(struct TPNGRPrvt* p, uintxx amount)
+_reserve(struct TPNGRPrvt* p, uintxx amount)
 {
 	if (p->allocator) {
 		return p->allocator->reserve(p->allocator->user, amount);
 	}
-	return CTB_MALLOC(amount);
+	return ctb_reserve(amount);
 }
 
 CTB_INLINE void
-release(struct TPNGRPrvt* p, void* memory)
+_release(struct TPNGRPrvt* p, void* memory)
 {
 	if (p->allocator) {
 		p->allocator->release(p->allocator->user, memory);
 		return;
 	}
-	CTB_FREE(memory);
+	ctb_release(memory);
 }
 
 TPNGReader*
@@ -161,15 +163,15 @@ pngr_create(ePNGRFlags flags, TAllocator* allocator)
 		pngr = allocator->reserve(allocator->user, sizeof(struct TPNGRPrvt));
 	}
 	else {
-		pngr = CTB_MALLOC(sizeof(struct TPNGRPrvt));
+		pngr = ctb_reserve(sizeof(struct TPNGRPrvt));
 	}
 	if (pngr == NULL) {
 		return NULL;
 	}
-	PRVT->allocator  = allocator;
+	PRVT->allocator = allocator;
 
 	if ((PRVT->inflator = inflator_create(allocator)) == NULL) {
-		release(PRVT, pngr);
+		_release(PRVT, pngr);
 		return NULL;
 	}
 	PRVT->iccpmemory = NULL;
@@ -188,7 +190,7 @@ void
 pngr_reset(TPNGReader* pngr, bool fullreset)
 {
 	uintxx i;
-	ASSERT(pngr);
+	CTB_ASSERT(pngr);
 
 	/* state */
 	PBLC->state = 0;
@@ -257,7 +259,7 @@ pngr_reset(TPNGReader* pngr, bool fullreset)
 	PRVT->idxs   = NULL;
 	if (PRVT->memory) {
 		if (fullreset) {
-			release(PRVT, PRVT->memory);
+			_release(PRVT, PRVT->memory);
 			PRVT->memory     = NULL;
 			PRVT->memorysize = 0;
 		}
@@ -268,7 +270,7 @@ pngr_reset(TPNGReader* pngr, bool fullreset)
 
 	if (PRVT->iccpmemory) {
 		if (fullreset) {
-			release(PRVT, PRVT->iccpmemory);
+			_release(PRVT, PRVT->iccpmemory);
 			PRVT->iccpmemory = NULL;
 			PRVT->iccpsize   = 0;
 		}
@@ -294,19 +296,19 @@ pngr_destroy(TPNGReader* pngr)
 	}
 
 	if (PRVT->memory) {
-		release(PRVT, PRVT->memory);
+		_release(PRVT, PRVT->memory);
 	}
 	if (PRVT->iccpmemory) {
-		release(PRVT, PRVT->iccpmemory);
+		_release(PRVT, PRVT->iccpmemory);
 	}
 	inflator_destroy(PRVT->inflator);
-	release(PRVT, PBLC);
+	_release(PRVT, PBLC);
 }
 
 void
 pngr_setinputfn(TPNGReader* pngr, TIMGInputFn fn, void* user)
 {
-	ASSERT(pngr);
+	CTB_ASSERT(pngr);
 
 	if (pngr->state) {
 		SETSTATE(PNGR_BADSTATE);
@@ -878,6 +880,7 @@ setuppasses(struct TPNGRPblc* pngr)
 CTB_INLINE bool
 checklimits(uintxx sizex, uintxx sizey, uintxx pelsize)
 {
+	/* !FIXME: ckdint */
 	uint64 v;
 
 	/* internal memory */
@@ -995,7 +998,7 @@ setvalues(struct TPNGRPblc* pngr, struct TImageInfo* info)
 uintxx
 pngr_initdecoder(TPNGReader* pngr, TImageInfo* info)
 {
-	ASSERT(pngr && info);
+	CTB_ASSERT(pngr && info);
 
 	if (pngr->state) {
 		if (pngr->error == 0) {
@@ -1058,7 +1061,7 @@ pngr_setbuffers(TPNGReader* pngr, uint8* pixels, uint8* idxs)
 {
 	uintxx i;
 	uint8* memory;
-	ASSERT(pngr);
+	CTB_ASSERT(pngr);
 
 	if (pngr->state ^ 1) {
 		SETSTATE(PNGR_BADSTATE);
@@ -1074,14 +1077,14 @@ pngr_setbuffers(TPNGReader* pngr, uint8* pixels, uint8* idxs)
 			memory = PRVT->memory;
 		}
 		else {
-			release(PRVT, PRVT->memory);
+			_release(PRVT, PRVT->memory);
 			PRVT->memory     = NULL;
 			PRVT->memorysize = 0;
 		}
 	}
 
 	if (memory == NULL) {
-		memory = reserve(PRVT, PBLC->requiredmemory);
+		memory = _reserve(PRVT, PBLC->requiredmemory);
 		if (memory == NULL) {
 			SETSTATE(PNGR_BADSTATE);
 			SETERROR(PNGR_EOOM);
@@ -1729,11 +1732,11 @@ readiccprofile(struct TPNGRPblc* pngr, uintxx size)
 				uint8* buffer;
 
 				if (PRVT->iccpmemory) {
-					release(PRVT, PRVT->iccpmemory);
+					_release(PRVT, PRVT->iccpmemory);
 					PRVT->iccpmemory = NULL;
 					PRVT->iccpsize   = 0;
 				}
-				buffer = reserve(PRVT, total);
+				buffer = _reserve(PRVT, total);
 				if (buffer == NULL) {
 					SETERROR(PNGR_EOOM);
 					return 0;
@@ -1745,7 +1748,7 @@ readiccprofile(struct TPNGRPblc* pngr, uintxx size)
 			profileend = profile + total;
 
 			/* copy the header */
-			memcpy(profile, PRVT->target, 0x80);
+			ctb_memcpy(profile, PRVT->target, 0x80);
 
 			/* now we are decoding it to the final memory location */
 			profile += 0x80;
@@ -2062,7 +2065,7 @@ fetchrow(struct TPNGRPblc* pngr, uint8* target, uintxx size)
 				j = total;
 			}
 
-			memcpy(target, PRVT->tbgn, j);
+			ctb_memcpy(target, PRVT->tbgn, j);
 			target     += j;
 			PRVT->tbgn += j;
 
@@ -2396,7 +2399,7 @@ setrow(struct TPNGRPblc* pngr, uint8* pixels, uint8* row)
 	}
 #endif
 
-	memcpy(pixels, row, PRVT->rowsize);
+	ctb_memcpy(pixels, row, PRVT->rowsize);
 }
 
 uintxx
@@ -2406,7 +2409,7 @@ pngr_decodeimg(TPNGReader* pngr)
 	uintxx j;
 	uint8* pixels;
 	uint8* idxs;
-	ASSERT(pngr);
+	CTB_ASSERT(pngr);
 
 	if (pngr->state ^ 3) {
 		if (pngr->state == 2) {
@@ -2652,7 +2655,7 @@ pngr_decodepass(TPNGReader* pngr)
 	uint8* offsetx;
 	uintxx stepx;
 	uintxx stepy;
-	ASSERT(pngr);
+	CTB_ASSERT(pngr);
 
 	if (pngr->state ^ 3) {
 		if (pngr->state == 2) {
@@ -2678,7 +2681,7 @@ pngr_decodepass(TPNGReader* pngr)
 	/* init the row buffers */
 	PRVT->prevrow = PRVT->rbuffers[0];
 	PRVT->currrow = PRVT->rbuffers[1];
-	memset(PRVT->prevrow, 0, memsize);
+	ctb_memset(PRVT->prevrow, 0, memsize);
 
 	/* */
 	stepx = STEP_X(i) * PRVT->pelsize;
