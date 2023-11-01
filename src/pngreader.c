@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021, jpn
+ * Copyright (C) 2023, jpn
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 #include "../pngreader.h"
 #include <inflator.h>
-#include <cmemory.h>
+#include <ctbmemory.h>
 
 
 #if defined(PNGR_CFG_DOCRC)
@@ -141,7 +141,7 @@ _reserve(struct TPNGRPrvt* p, uintxx amount)
 	if (p->allocator) {
 		return p->allocator->reserve(p->allocator->user, amount);
 	}
-	return ctb_reserve(amount);
+	return CTB_RESERVE(amount);
 }
 
 CTB_INLINE void
@@ -151,7 +151,7 @@ _release(struct TPNGRPrvt* p, void* memory)
 		p->allocator->release(p->allocator->user, memory);
 		return;
 	}
-	ctb_release(memory);
+	CTB_RELEASE(memory);
 }
 
 TPNGReader*
@@ -163,7 +163,7 @@ pngr_create(ePNGRFlags flags, TAllocator* allocator)
 		pngr = allocator->reserve(allocator->user, sizeof(struct TPNGRPrvt));
 	}
 	else {
-		pngr = ctb_reserve(sizeof(struct TPNGRPrvt));
+		pngr = CTB_RESERVE(sizeof(struct TPNGRPrvt));
 	}
 	if (pngr == NULL) {
 		return NULL;
