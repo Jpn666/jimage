@@ -18,8 +18,8 @@
  * Sean Barrett). The book Compressed File Formats by John Miano was used as
  * reference. */
 
-#include "../jpgreader.h"
-#include <ctbmemory.h>
+#include <jimage/jpgreader.h>
+#include <ctoolbox/memory.h>
 
 
 /* segment markers */

@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#include "../pngreader.h"
-#include <inflator.h>
-#include <ctbmemory.h>
+#include <jimage/pngreader.h>
+#include <jdeflate/inflator.h>
+#include <ctoolbox/memory.h>
 
 
 #if defined(PNGR_CFG_DOCRC)
@@ -26,7 +26,7 @@
 #endif
 
 #if DOCRC
-	#include <crypto/crc32.h>
+	#include <ctoolbox/crypto/crc32.h>
 #endif
 
 

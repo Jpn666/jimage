@@ -1,9 +1,9 @@
-project('deflate', 'c', default_options: ['c_std=c99', 'buildtype=release', 'warning_level=3'], version: run_command('python', join_paths(meson.current_source_dir(), 'tools/version.py'), check: true).stdout().strip())
+project('jimage', 'c', default_options: ['c_std=c99', 'buildtype=release', 'warning_level=3'], version: run_command('python', join_paths(meson.current_source_dir(), 'tools/version.py'), check: true).stdout().strip())
 
 
 deps = []
 deps += [dependency('', fallback: ['ctoolbox', 'lib'])]
-deps += [dependency('', fallback: ['deflate', 'lib'])]
+deps += [dependency('', fallback: ['jdeflate', 'lib'])]
 
 
 # major, minor and path
@@ -17,6 +17,23 @@ if mmp.length() == 3
     mmp[2].to_int()
   ]
 endif
+
+
+# Configuration
+conf = configuration_data()
+
+# build the version string
+v0 = versionarray[0]
+v1 = versionarray[1]
+v2 = versionarray[2]
+version = f'@v0@.@v1@.@v2@'
+
+
+conf.set('version', version)
+
+conf.set('version_major', v0)
+conf.set('version_minor', v1)
+conf.set('version_rpath', v2)
 
 
 target = target_machine.cpu_family()
@@ -47,9 +64,36 @@ if target == 'x86_64'
 endif
 
 
-projectsources = [
-  'src/pngreader.c', 'src/jpgreader.c'
-]
+python = find_program('python3')
+script = join_paths(meson.current_source_dir(), 'tools/listfiles.py')
+newline = '''
+'''
+
+
+projectsources = []
+
+base = 'src'
+r = run_command(python, script, base, '.c', check: true).stdout()
+foreach file: r.split(newline)
+  if not (file == '')
+    projectsources += [file]
+  endif
+endforeach
+
+
+headerfiles = []
+
+base = 'jimage'
+r = run_command(python, script, base, '.h', check: true).stdout()
+foreach file: r.split(newline)
+  if not (file == '')
+    headerfiles += [file]
+  endif
+endforeach
+
+configfile = configure_file(input: 'jimageconfig.template', output: 'jimageconfig.h', configuration: conf)
+headerfiles += [configfile]
+
 
 largs = []
 if externalasm
@@ -60,8 +104,9 @@ if externalasm
 endif
 
 
-static_build = static_library('image', sources: projectsources, pic: true, install: true,  dependencies: deps)
-
+static_build = static_library('jimage', sources: projectsources, pic: true, install: true,  dependencies: deps)
 lib = declare_dependency(
   link_with: static_build, include_directories: include_directories('.'), dependencies: deps, link_args: largs
 )
+
+install_headers(headerfiles, preserve_path: true)

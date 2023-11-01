@@ -22,7 +22,7 @@
  * Shared struct used to retrieve image information.
  */
 
-#include <ctoolbox.h>
+#include <ctoolbox/ctoolbox.h>
 
 
 /* supported color modes for the resulting decoding */
