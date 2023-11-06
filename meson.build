@@ -91,7 +91,7 @@ foreach file: r.split(newline)
   endif
 endforeach
 
-configfile = configure_file(input: 'jimageconfig.template', output: 'jimageconfig.h', configuration: conf)
+configfile = configure_file(input: 'jimageconfig.h.in', output: 'jimageconfig.h', configuration: conf)
 headerfiles += [configfile]
 
 
