@@ -5,6 +5,11 @@ deps = []
 deps += [dependency('', fallback: ['ctoolbox', 'lib'])]
 deps += [dependency('', fallback: ['jdeflate', 'lib'])]
 
+cc = meson.get_compiler('c')
+if cc.get_id() == 'msvc'
+  add_project_arguments('-D__MSVC__', language: 'c')
+endif
+
 
 # major, minor and path
 versionarray = [0, 0, 0]
