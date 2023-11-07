@@ -1423,7 +1423,7 @@ checksize(struct TJPGRPblc* jpgr)
 	uint64 s;
 
 	s = jpgr->sizey * jpgr->sizex * PRVT->ncomponents;
-	if (s > 0xfffffffful) {
+	if (s > (uint64) 0xfffffffful) {
 		return 0;
 	}
 #else
