@@ -1422,8 +1422,8 @@ checksize(struct TJPGRPblc* jpgr)
 #if !defined(CTB_ENV64)
 	uint64 s;
 
-	s = jpgr->sizey * jpgr->sizex * PRVT->ncomponents;
-	if (s > (uint64) 0xfffffffful) {
+	s =  ((uint64) jpgr->sizey * (uint64) jpgr->sizex) * PRVT->ncomponents;
+	if (s > 0xfffffffful) {
 		return 0;
 	}
 #else
