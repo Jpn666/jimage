@@ -99,12 +99,14 @@ largs = []
 if externalasm
   cc = meson.get_compiler('c')
   if cc.get_linker_id() == 'ld.bfd'
-    largs += ['-z', 'noexecstack']
+    if target_machine.system() == 'unix'
+      largs += ['-z', 'noexecstack']
+    endif
   endif
 endif
 
 
-static_build = static_library('jimage', sources: projectsources, pic: true, install: true,  dependencies: deps)
+static_build = static_library('jimage', sources: projectsources, pic: true, objects: externalobjs, install: true, dependencies: deps)
 lib = declare_dependency(
   link_with: static_build, include_directories: include_directories('.'), dependencies: deps, link_args: largs
 )
