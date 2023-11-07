@@ -17,6 +17,7 @@
 #include <jimage/pngreader.h>
 #include <jdeflate/inflator.h>
 #include <ctoolbox/memory.h>
+#include <ctoolbox/ckdint.h>
 
 
 #if defined(PNGR_CFG_DOCRC)
@@ -36,14 +37,6 @@
 
 /* ICC profile size limit */
 #define MAXICCPSIZE  0x800000L
-
-
-/* image size limit 4GB on 64bit or 2GB on 32bit platform */
-#if defined(CTB_ENV64)
-	#define MAXSAFESIZE 0x100000000LL
-#else
-	#define MAXSAFESIZE 0x080000000LL
-#endif
 
 
 /* private stuff */
@@ -880,29 +873,37 @@ setuppasses(struct TPNGRPblc* pngr)
 CTB_INLINE bool
 checklimits(uintxx sizex, uintxx sizey, uintxx pelsize)
 {
-	/* !FIXME: ckdint */
-	uint64 v;
+#if defined(CTB_ENV64)
+	uint64 v[1];
 
 	/* internal memory */
-	v = sizex * pelsize;
-	if (v > (MAXSAFESIZE >> 2)) {
-		return 0;
-	}
-	v = v * 2;
-	if (v > (MAXSAFESIZE >> 2)) {
+	if (ckdu64_mul(sizex, pelsize << 1, v)) {
 		return 0;
 	}
 
 	/* image size */
-	v = sizex * sizey;
-	if (v > MAXSAFESIZE) {
+	if (ckdu64_mul(sizex, sizey, v) == 0) {
+		if (ckdu64_mul(pelsize, v[0], v) == 0) {
+			return 1;
+		}
+	}
+	return 0;
+#else
+	uint32 v[1];
+
+	/* internal memory */
+	if (ckdu32_mul(sizex, pelsize << 1, v)) {
 		return 0;
 	}
-	v = v * pelsize;
-	if (v > MAXSAFESIZE) {
-		return 0;
+
+	/* image size */
+	if (ckdu32_mul(sizex, sizey, v) == 0) {
+		if (ckdu32_mul(pelsize, v[0], v) == 0) {
+			return 1;
+		}
 	}
-	return 1;
+	return 0;
+#endif
 }
 
 CTB_INLINE bool
