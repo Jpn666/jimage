@@ -20,6 +20,7 @@
 
 #include <jimage/jpgreader.h>
 #include <ctoolbox/memory.h>
+#include <ctoolbox/ckdint.h>
 
 
 /* segment markers */
@@ -1413,34 +1414,21 @@ initcomponents(struct TJPGRPblc* jpgr, uintxx ys, uintxx xs)
 }
 
 
-/* image size limit 4GB on 64bit or 2GB on 32bit platform */
-#if defined(CTB_ENV64)
-	#define MAXSAFESIZE1 0x100000000LL
-	#define MAXSAFESIZE3 0x055555555LL
-#else
-	#define MAXSAFESIZE1 0x080000000LL
-	#define MAXSAFESIZE3 0x02aaaaaaaLL
-#endif
-
 /* this is not accurate but for progressive (or non-interleaved) images we
  * check the limits later */
 CTB_INLINE uintxx
 checksize(struct TJPGRPblc* jpgr)
 {
-	/* !FIXME: ckdint */
-	uintxx s;
+#if !defined(CTB_ENV64)
+	uint64 s;
 
-	s = jpgr->sizey * jpgr->sizex;
-	if (PRVT->ncomponents == 3) {
-		if (s > MAXSAFESIZE3) {
-			return  0;
-		}
+	s = jpgr->sizey * jpgr->sizex * PRVT->ncomponents;
+	if (s > 0xfffffffful) {
+		return 0;
 	}
-	else {
-		if (s > MAXSAFESIZE1) {
-			return 0;
-		}
-	}
+#else
+	(void) jpgr;
+#endif
 
 	return 1;
 }
@@ -1705,9 +1693,9 @@ readpassinfo(struct TJPGRPblc* jpgr, uint8* s)
 CTB_INLINE uintxx
 setrequiredmemory(struct TJPGRPblc* jpgr)
 {
-	/* !FIXME: ckdint */
 	uintxx i;
 	uint64 total;
+	uint64 v[1];
 	struct TJPGComponent* c;
 
 	total = 0;
@@ -1723,16 +1711,28 @@ setrequiredmemory(struct TJPGRPblc* jpgr)
 			total += c->ucount + (c->ysampling * c->xsampling);
 		}
 	}
-	total = (total * 64) * sizeof(c->units[0][0]) + 16;
-
-	if (PRVT->issubsampled) {
-		total += PRVT->ncomponents * (8 * sizeof(c->srow[0]));
+	if (ckdu64_mul(total, 64 * sizeof(c->units[0][0]), v) == 0) {
+		if (ckdu64_add(v[0], 16, v)) {
+			return 0;
+		}
 	}
-
-	/* check memory limits */
-	if (total > MAXSAFESIZE1) {
+	else {
 		return 0;
 	}
+
+	if (PRVT->issubsampled) {
+		total = PRVT->ncomponents * (8 * sizeof(c->srow[0]));
+		if (ckdu64_add(v[0], total, v)) {
+			return 0;
+		}
+	}
+	total = v[0];
+
+#if !defined(CTB_ENV64)
+	if (total > 0xfffffffful) {
+		return 0;
+	}
+#endif
 	jpgr->requiredmemory = (uintxx) total;
 	return 1;
 }
