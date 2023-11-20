@@ -2666,14 +2666,14 @@ inverseDCT(int16* sblock, int16* rblock, int16* qtable)
 
 		if ((l1 | l2 | l3 | l4 | l5 | l6 | l7) == 0) {
 			l0 = ((int16) (l0 * qtable[0])) << 1;
-			rr[0] = l0;
-			rr[1] = l0;
-			rr[2] = l0;
-			rr[3] = l0;
-			rr[4] = l0;
-			rr[5] = l0;
-			rr[6] = l0;
-			rr[7] = l0;
+			rr[0] = (int16) l0;
+			rr[1] = (int16) l0;
+			rr[2] = (int16) l0;
+			rr[3] = (int16) l0;
+			rr[4] = (int16) l0;
+			rr[5] = (int16) l0;
+			rr[6] = (int16) l0;
+			rr[7] = (int16) l0;
 			qtable++;
 			sblock++;
 			rr += 8;
@@ -2743,14 +2743,14 @@ inverseDCT(int16* sblock, int16* rblock, int16* qtable)
 
 		/* last stage */
 		/* keep 1 bit of precision, plus 3 (scaled by 8) */
-		rr[0] = ((l0 + l7) + 2048) >> 12;
-		rr[7] = ((l0 - l7) + 2048) >> 12;
-		rr[1] = ((l1 + l6) + 2048) >> 12;
-		rr[6] = ((l1 - l6) + 2048) >> 12;
-		rr[2] = ((l2 + l5) + 2048) >> 12;
-		rr[5] = ((l2 - l5) + 2048) >> 12;
-		rr[3] = ((l3 + l4) + 2048) >> 12;
-		rr[4] = ((l3 - l4) + 2048) >> 12;
+		rr[0] = (int16) (((l0 + l7) + 2048) >> 12);
+		rr[7] = (int16) (((l0 - l7) + 2048) >> 12);
+		rr[1] = (int16) (((l1 + l6) + 2048) >> 12);
+		rr[6] = (int16) (((l1 - l6) + 2048) >> 12);
+		rr[2] = (int16) (((l2 + l5) + 2048) >> 12);
+		rr[5] = (int16) (((l2 - l5) + 2048) >> 12);
+		rr[3] = (int16) (((l3 + l4) + 2048) >> 12);
+		rr[4] = (int16) (((l3 - l4) + 2048) >> 12);
 		qtable++;
 		sblock++;
 		rr += 8;
