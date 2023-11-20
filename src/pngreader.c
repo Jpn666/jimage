@@ -2090,7 +2090,7 @@ fetchrow(struct TPNGRPblc* pngr, uint8* target, uintxx size)
 
 #if defined(PNGR_CFG_EXTERNALASM)
 
-extern void pngr_unfilterASM(uint8*, uint8*, uintxx, uintxx, uintxx);
+extern void pngr_unfilterASM(uint8*, uint8*, uintxx, uintxx);
 
 #else
 
@@ -2129,12 +2129,14 @@ paetchfilter(uint8 a, uint8 b, uint8 c)
 }
 
 static void
-unfilter(uint8* curr, uint8* prev, uintxx filter, uintxx size, uintxx psize)
+unfilter(uint8* curr, uint8* prev, uintxx size, uintxx fp)
 {
 	uintxx i;
+	uintxx psize;
 
-	switch (filter) {
+	switch (fp >> 16) {
 		case 1:
+			psize = fp & 0xffff;
 			for (i = psize; i < size;) {
 				curr[i] += curr[i - psize]; i++;
 				curr[i] += curr[i - psize]; i++;
@@ -2155,6 +2157,7 @@ unfilter(uint8* curr, uint8* prev, uintxx filter, uintxx size, uintxx psize)
 			break;
 
 		case 3:
+			psize = fp & 0xffff;
 			for (i = 0; i < psize; i++) {
 				curr[i] += prev[i] >> 1;
 			}
@@ -2168,6 +2171,7 @@ unfilter(uint8* curr, uint8* prev, uintxx filter, uintxx size, uintxx psize)
 			break;
 
 		case 4:
+			psize = fp & 0xffff;
 			for (i = 0; i < psize; i++) {
 				curr[i] += prev[i];
 			}
@@ -2278,7 +2282,7 @@ decoderow(struct TPNGRPblc* pngr, uintxx sizex, uintxx rowsize)
 			SETSTATE(PNGR_BADSTATE);
 			return NULL;
 		}
-		UNFILTER(curr, prev, filter, rowsize - 1, PRVT->rawpelsize);
+		UNFILTER(curr, prev, rowsize - 1, (filter << 16) | PRVT->rawpelsize);
 	}
 
 	if (UNLIKELY(pngr->depth < 8)) {
