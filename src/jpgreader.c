@@ -2608,7 +2608,7 @@ decodeblock(struct TJPGRPblc* jpgr, struct TJPGComponent* c, int16* block)
 
 #if defined(JPGR_CFG_EXTERNALASM)
 
-extern void jpgr_inverseDCT(int16*, int16*, int16*);
+extern void jpgr_inverseDCTASM(int16*, int16*, int16*);
 
 #else
 
@@ -2644,8 +2644,8 @@ inverseDCT(int16* sblock, int16* rblock, int16* qtable)
 	int32 l6;
 	int32 l7;
 	int32 z0, z1, z2, z3, z4, z5;
-	int32 r[64];
-	int32* rr;
+	int16 r[64];
+	int16* rr;
 	uintxx i;
 
 #define y7 l4
@@ -2665,7 +2665,7 @@ inverseDCT(int16* sblock, int16* rblock, int16* qtable)
 		l7 = sblock[1 * 8];  /* y1 */
 
 		if ((l1 | l2 | l3 | l4 | l5 | l6 | l7) == 0) {
-			l0 = (l0 * qtable[0]) << 1;
+			l0 = ((int16) (l0 * qtable[0])) << 1;
 			rr[0] = l0;
 			rr[1] = l0;
 			rr[2] = l0;
@@ -2681,14 +2681,14 @@ inverseDCT(int16* sblock, int16* rblock, int16* qtable)
 		}
 
 		/* dequantize */
-		l0 *= qtable[0 * 8];
-		l1 *= qtable[4 * 8];
-		l2 *= qtable[2 * 8];
-		l3 *= qtable[6 * 8];
-		l4 *= qtable[7 * 8];
-		l5 *= qtable[5 * 8];
-		l6 *= qtable[3 * 8];
-		l7 *= qtable[1 * 8];
+		l0 = (int16) (l0 * qtable[0 * 8]);
+		l1 = (int16) (l1 * qtable[4 * 8]);
+		l2 = (int16) (l2 * qtable[2 * 8]);
+		l3 = (int16) (l3 * qtable[6 * 8]);
+		l4 = (int16) (l4 * qtable[7 * 8]);
+		l5 = (int16) (l5 * qtable[5 * 8]);
+		l6 = (int16) (l6 * qtable[3 * 8]);
+		l7 = (int16) (l7 * qtable[1 * 8]);
 
 		/*
 		* even part */
@@ -2696,9 +2696,6 @@ inverseDCT(int16* sblock, int16* rblock, int16* qtable)
 		/* stage 3 */
 		z0 = (l0 + l1) << 13;
 		z1 = (l0 - l1) << 13;
-
-		l0 = z0;
-		l1 = z1;
 
 		/*
 		first rotation:
@@ -2722,14 +2719,14 @@ inverseDCT(int16* sblock, int16* rblock, int16* qtable)
 		 * multiplication per path as descrived in figure 8 */
 		z1 = y7 + y1;
 		z2 = y5 + y3;
-		z3 = y7 + y3;
-		z4 = y5 + y1;
+		z3 = (int16) (y7 + y3);
+		z4 = (int16) (y5 + y1);
 		z5 = z3 + z4;
 
-		y7 *= A;
-		y5 *= B;
-		y3 *= C;
-		y1 *= D;
+		y7 = y7 * A;
+		y5 = y5 * B;
+		y3 = y3 * C;
+		y1 = y1 * D;
 		z1 *= E;
 		z2 *= F;
 		z3 *= G;
@@ -2788,8 +2785,8 @@ inverseDCT(int16* sblock, int16* rblock, int16* qtable)
 		/* odd part */
 		z1 = y7 + y1;
 		z2 = y5 + y3;
-		z3 = y7 + y3;
-		z4 = y5 + y1;
+		z3 = (int16) (y7 + y3);
+		z4 = (int16) (y5 + y1);
 		z5 = z3 + z4;
 
 		y7 *= A;
@@ -2811,8 +2808,7 @@ inverseDCT(int16* sblock, int16* rblock, int16* qtable)
 		y7 += z1 + z3;
 
 		/* last stage */
-		/* 13 bits +
-		 *  4 bits (1 bit preview pass + 3 current pass) */
+		/* 13 bits + 4 bits (1 bit prev pass + 3 current pass) */
 		rblock[0 * 8] = ((l0 + l7) + 65536) >> 17;
 		rblock[7 * 8] = ((l0 - l7) + 65536) >> 17;
 		rblock[1 * 8] = ((l1 + l6) + 65536) >> 17;
@@ -2824,7 +2820,6 @@ inverseDCT(int16* sblock, int16* rblock, int16* qtable)
 		rr++;
 		rblock++;
 	}
-
 #undef y7
 #undef y5
 #undef y3
@@ -2917,9 +2912,9 @@ tograyscale(int16 v)
 
 #if defined(JPGR_CFG_EXTERNALASM)
 
-extern void jpgr_setrow3(int16*, int16*, int16*, uint8*, uintxx);
-extern void jpgr_setrow1(int16*, uint8*);
-extern void jpgr_upsamplerow(int16*, int16*, uintxx);
+extern void jpgr_setrow3ASM(int16*, int16*, int16*, uint8*, uintxx);
+extern void jpgr_setrow1ASM(int16*, uint8*);
+extern void jpgr_upsamplerowASM(int16*, int16*, uintxx);
 
 #else
 
@@ -3022,9 +3017,9 @@ setrow1(int16* r1, uint8* row)
 
 #if defined(JPGR_CFG_EXTERNALASM)
 
-#define inverseDCT jpgr_inverseDCT
-#define setrow1 jpgr_setrow1
-#define setrow3 jpgr_setrow3
+#define inverseDCT jpgr_inverseDCTASM
+#define setrow1 jpgr_setrow1ASM
+#define setrow3 jpgr_setrow3ASM
 
 #endif
 
@@ -3181,7 +3176,7 @@ setpixels3ss(struct TJPGRPblc* jpgr, uintxx y, uintxx x, uintxx torgb)
 				 * images */
 				if (c1->rumode[i]) {
 #if defined(JPGR_CFG_EXTERNALASM)
-					jpgr_upsamplerow(row1, r1, c1->rumode[i]);
+					jpgr_upsamplerowASM(row1, r1, c1->rumode[i]);
 #else
 					r1[0] = u1[c1->umap[s + 0] + d1];
 					r1[1] = u1[c1->umap[s + 1] + d1];
@@ -3200,7 +3195,7 @@ setpixels3ss(struct TJPGRPblc* jpgr, uintxx y, uintxx x, uintxx torgb)
 
 				if (c2->rumode[i]) {
 #if defined(JPGR_CFG_EXTERNALASM)
-					jpgr_upsamplerow(row2, r2, c2->rumode[i]);
+					jpgr_upsamplerowASM(row2, r2, c2->rumode[i]);
 #else
 					r2[0] = u2[c2->umap[s + 0] + d2];
 					r2[1] = u2[c2->umap[s + 1] + d2];
@@ -3219,7 +3214,7 @@ setpixels3ss(struct TJPGRPblc* jpgr, uintxx y, uintxx x, uintxx torgb)
 
 				if (c3->rumode[i]) {
 #if defined(JPGR_CFG_EXTERNALASM)
-					jpgr_upsamplerow(row3, r3, c3->rumode[i]);
+					jpgr_upsamplerowASM(row3, r3, c3->rumode[i]);
 #else
 					r3[0] = u3[c3->umap[s + 0] + d3];
 					r3[1] = u3[c3->umap[s + 1] + d3];

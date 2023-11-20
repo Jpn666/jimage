@@ -40,31 +40,58 @@ conf.set('version_major', v0)
 conf.set('version_minor', v1)
 conf.set('version_rpath', v2)
 
+projectsources = []
+
+
+isunix    = false
+iswindows = false
+
+# System platform
+if target_machine.system() == 'windows'
+  iswindows = true
+else
+  if target_machine.system() == 'haiku'
+    pass
+  else
+    isunix = true
+  endif
+endif
+
 
 target = target_machine.cpu_family()
-externalobjs = []
-externalasm  = false
-
-
 if target == 'x86_64'
   supported = false
 
   path = 'src/asm/'
-  if target_machine.system() == 'unix'
-    path = path / 'unix'
+  if isunix
     supported = true
   endif
-  if target_machine.system() == 'windows'
-    path = path / 'windows'
+  if iswindows
     supported = true
   endif
 
   if supported
-    externalobjs += [path / 'pngreader-' + target + '.o']
-    externalobjs += [path / 'jpgreader-' + target + '.o']
-    add_project_arguments('-DJPGR_CFG_EXTERNALASM', language: 'c')
-    add_project_arguments('-DPNGR_CFG_EXTERNALASM', language: 'c')
-    externalasm = true
+    if add_languages('nasm', required: false, native: false)
+      if isunix
+        if host_machine.system() in ['darwin', 'ios', 'tvos']
+          nasmformat = 'macho64'
+        else
+          nasmformat = 'elf64'
+        endif
+      endif
+      if iswindows
+        nasmformat = 'win64'
+      endif
+
+      add_project_arguments('-f', nasmformat, language: 'nasm')
+      projectsources += [path / 'x64-jpgreader.asm']
+      projectsources += [path / 'x64-pngreader.asm']
+
+      add_project_arguments('-DJPGR_CFG_EXTERNALASM', language: 'c')
+      add_project_arguments('-DPNGR_CFG_EXTERNALASM', language: 'c')
+    else
+      warning('NASM not found, using C fallback code')
+    endif
   endif
 endif
 
@@ -74,8 +101,6 @@ script = join_paths(meson.current_source_dir(), 'tools/listfiles.py')
 newline = '''
 '''
 
-
-projectsources = []
 
 base = 'src'
 r = run_command(python, script, base, '.c', check: true).stdout()
@@ -101,17 +126,8 @@ headerfiles += [configfile]
 
 
 largs = []
-if externalasm
-  cc = meson.get_compiler('c')
-  if cc.get_linker_id() == 'ld.bfd'
-    if target_machine.system() == 'unix'
-      largs += ['-z', 'noexecstack']
-    endif
-  endif
-endif
 
-
-static_build = static_library('jimage', sources: projectsources, pic: true, objects: externalobjs, install: true, dependencies: deps)
+static_build = static_library('jimage', sources: projectsources, pic: true, install: true, dependencies: deps)
 lib = declare_dependency(
   link_with: static_build, include_directories: include_directories('.'), dependencies: deps, link_args: largs
 )

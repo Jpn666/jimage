@@ -2089,6 +2089,7 @@ fetchrow(struct TPNGRPblc* pngr, uint8* target, uintxx size)
 
 
 #if defined(PNGR_CFG_EXTERNALASM)
+
 extern void pngr_unfilterASM(uint8*, uint8*, uintxx, uintxx, uintxx);
 
 #else
