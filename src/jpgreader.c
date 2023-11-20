@@ -539,7 +539,7 @@ readmore(struct TJPGRPblc* jpgr, uintxx avaible, uintxx amount)
 	intxx r;
 
 	remaining = (uintxx) (PRVT->sourceend - PRVT->end);
-	if (LIKELY(remaining + avaible < amount)) {
+	if (CTB_LIKELY(remaining + avaible < amount)) {
 		if (avaible) {
 			uintxx j;
 
@@ -559,7 +559,7 @@ readmore(struct TJPGRPblc* jpgr, uintxx avaible, uintxx amount)
 	}
 
 	r = PRVT->inputfn(PRVT->end, remaining, PRVT->payload);
-	if (LIKELY(r > 0)) {
+	if (CTB_LIKELY(r > 0)) {
 		avaible   += r;
 		PRVT->end += r;
 	}
@@ -580,7 +580,7 @@ ensurebytes(struct TJPGRPblc* jpgr, uintxx amount)
 	uintxx avaible;
 
 	avaible = (uintxx) (PRVT->end - PRVT->bgn);
-	if (UNLIKELY(avaible < amount)) {
+	if (CTB_UNLIKELY(avaible < amount)) {
 		avaible = readmore(jpgr, avaible, amount);
 	}
 
@@ -619,7 +619,7 @@ readinput(struct TJPGRPblc* jpgr, uintxx amount)
 {
 	uint8* s;
 
-	if (LIKELY(ensurebytes(jpgr, amount))) {
+	if (CTB_LIKELY(ensurebytes(jpgr, amount))) {
 		s = PRVT->bgn;
 		consumebytes(jpgr, amount);
 		return s;
@@ -637,7 +637,7 @@ read16(struct TJPGRPblc* jpgr)
 	uint8* s;
 
 	s = readinput(jpgr, 2);
-	if (UNLIKELY(s == NULL)) {
+	if (CTB_UNLIKELY(s == NULL)) {
 		return 0;
 	}
 	return TOI16(s[0], s[1]);
@@ -655,7 +655,7 @@ readmarker(struct TJPGRPblc* jpgr)
 	if (s[0] == 0xff) {
 		do {
 			s = readinput(jpgr, 1);
-			if (UNLIKELY(s == NULL)) {
+			if (CTB_UNLIKELY(s == NULL)) {
 				return 0;
 			}
 		} while (s[0] == 0xff);
@@ -2251,7 +2251,7 @@ fecthbits(struct TJPGRPblc* jpgr)
 	uintxx buffer;
 
 	PRVT->bindex = 0;
-	if (UNLIKELY(PRVT->bend)) {
+	if (CTB_UNLIKELY(PRVT->bend)) {
 		if (PRVT->bend == 1) {
 			for (index = 0; index < BPREFETCHBZ; index++) {
 				PRVT->bb[index] = 0;
@@ -2262,13 +2262,13 @@ fecthbits(struct TJPGRPblc* jpgr)
 	}
 
 	index = 0;
-	if (LIKELY(((uintxx) (PRVT->end - PRVT->bgn)) >= BUFFERBYTES)) {
+	if (CTB_LIKELY(((uintxx) (PRVT->end - PRVT->bgn)) >= BUFFERBYTES)) {
 		for (; index < BPREFETCHBZ; PRVT->bgn += 2) {
-			if (UNLIKELY(PRVT->bgn[0] == 0xff)) {
+			if (CTB_UNLIKELY(PRVT->bgn[0] == 0xff)) {
 				PRVT->bbcread += (index << 1) << 3;
 				goto L_SLOW;
 			}
-			if (UNLIKELY(PRVT->bgn[1] == 0xff)) {
+			if (CTB_UNLIKELY(PRVT->bgn[1] == 0xff)) {
 				PRVT->bbcread += (index << 1) << 3;
 				goto L_SLOW;
 			}
@@ -2290,11 +2290,11 @@ L_SLOW:
 		uintxx v;
 
 		v = PRVT->end - PRVT->bgn;
-		if (LIKELY(v > 1)) {
+		if (CTB_LIKELY(v > 1)) {
 			m = PRVT->bgn[0];
 		}
 		else {
-			if (UNLIKELY(PRVT->endofinput)) {
+			if (CTB_UNLIKELY(PRVT->endofinput)) {
 				m = 0;
 				s = 1;
 				if (v) {
@@ -2313,7 +2313,7 @@ L_SLOW:
 			}
 		}
 
-		if (UNLIKELY(m == 0xff)) {
+		if (CTB_UNLIKELY(m == 0xff)) {
 			if (PRVT->bgn[1]) {
 				m = 0;
 				s = 1;
@@ -2360,8 +2360,8 @@ initbitmode(struct TJPGRPblc* jpgr)
 CTB_INLINE void
 ensurebits(struct TJPGRPblc* jpgr, uintxx n)
 {
-	if (LIKELY(PRVT->bbcount < n)) {
-		if (UNLIKELY(PRVT->bindex >= BPREFETCHBZ)) {
+	if (CTB_LIKELY(PRVT->bbcount < n)) {
+		if (CTB_UNLIKELY(PRVT->bindex >= BPREFETCHBZ)) {
 			fecthbits(jpgr);
 		}
 		PRVT->bbuffer  = (PRVT->bbuffer << 16) | PRVT->bb[PRVT->bindex++];
@@ -2405,7 +2405,7 @@ decodesymbol(struct TJPGACHmTable* table, uintxx bits)
 
 	s = (uint16) table->symbols[bits >> (16 - ROOTBITS)];
 
-	if (UNLIKELY((int16) s < 0)) {
+	if (CTB_UNLIKELY((int16) s < 0)) {
 		uintxx offset;
 		uintxx extra;
 
@@ -2424,16 +2424,16 @@ fillbbuffer(struct TJPGRPblc* jpgr, BBTYPE bb)
 {
 	/* keep 16 bits */
 #if defined(CTB_ENV64)
-	if (UNLIKELY(PRVT->bindex >= BPREFETCHBZ))
+	if (CTB_UNLIKELY(PRVT->bindex >= BPREFETCHBZ))
 		fecthbits(jpgr);
 	bb = (bb << 16) | PRVT->bb[PRVT->bindex++];
 
-	if (UNLIKELY(PRVT->bindex >= BPREFETCHBZ))
+	if (CTB_UNLIKELY(PRVT->bindex >= BPREFETCHBZ))
 		fecthbits(jpgr);
 	bb = (bb << 16) | PRVT->bb[PRVT->bindex++];
 #endif
 
-	if (UNLIKELY(PRVT->bindex >= BPREFETCHBZ))
+	if (CTB_UNLIKELY(PRVT->bindex >= BPREFETCHBZ))
 		fecthbits(jpgr);
 	bb = (bb << 16) | PRVT->bb[PRVT->bindex++];
 
@@ -2481,7 +2481,7 @@ decodeblock(struct TJPGRPblc* jpgr, struct TJPGComponent* c, int16* block)
 		bc += BBFILLBITS;
 	}
 	s = decodesymbol((void*) dc, GETBITS(bb, bc, 16));
-	if (UNLIKELY(s == 0)) {
+	if (CTB_UNLIKELY(s == 0)) {
 		/* invalid code */
 		SETERROR(JPGR_EBADCODE);
 		return 0;
@@ -2511,7 +2511,7 @@ decodeblock(struct TJPGRPblc* jpgr, struct TJPGComponent* c, int16* block)
 
 		/* fast decoding for run-length + extended value */
 		s = ac->sextent[GETBITS(bb, bc, ROOTBITS)];
-		if (LIKELY(s != 0)) {
+		if (CTB_LIKELY(s != 0)) {
 			/* this can't be out of range now, that is why we extended
 			 * zzorder by 16 */
 			i += (s >> 4) & 0x0f;
@@ -2524,7 +2524,7 @@ decodeblock(struct TJPGRPblc* jpgr, struct TJPGComponent* c, int16* block)
 		}
 
 		s = decodesymbol(ac, GETBITS(bb, bc, 16));
-		if (UNLIKELY(s == 0)) {
+		if (CTB_UNLIKELY(s == 0)) {
 			/* invalid code */
 			SETERROR(JPGR_EBADCODE);
 			return 0;
@@ -2544,7 +2544,7 @@ decodeblock(struct TJPGRPblc* jpgr, struct TJPGComponent* c, int16* block)
 			i += symbol >> 4;
 			symbol = symbol & 0x0f;
 
-			if (UNLIKELY(i >= 64)) {
+			if (CTB_UNLIKELY(i >= 64)) {
 				if (bc < 16) {
 					bb = fillbbuffer(jpgr, bb);
 					bc += BBFILLBITS;
@@ -2570,7 +2570,7 @@ decodeblock(struct TJPGRPblc* jpgr, struct TJPGComponent* c, int16* block)
 	PRVT->bbuffer = bb;
 	PRVT->bbcount = bc;
 	PRVT->bbcread = PRVT->bbcread - r;
-	if (UNLIKELY(overread(jpgr))) {
+	if (CTB_UNLIKELY(overread(jpgr))) {
 		SETERROR(JPGR_EBADCODE);
 		return 0;
 	}
@@ -2926,7 +2926,7 @@ setrow3(int16* r1, int16* r2, int16* r3, uint8* row, uintxx transform)
 	int32 b;
 	intxx i;
 
-	if (LIKELY(transform)) {
+	if (CTB_LIKELY(transform)) {
 		for (i = 0; i < 8; i++, row += 3) {
 			int32 m;
 			r = r3[i] *  FIXED_1_402;
@@ -3035,7 +3035,7 @@ setpixels1(struct TJPGRPblc* jpgr, uintxx y, uintxx x, int16* u1)
 
 	row = y << 3;
 	for (s = 0; s < 64; s += 8) {
-		if (UNLIKELY(row >= jpgr->sizey)) {
+		if (CTB_UNLIKELY(row >= jpgr->sizey)) {
 			break;
 		}
 
@@ -3081,12 +3081,12 @@ setpixels3ns(struct TJPGRPblc* jpgr, uintxx y, uintxx x, uintxx torgb)
 	for (s = 0; s < 64; s += 8) {
 		uintxx o;
 
-		if (UNLIKELY(row >= jpgr->sizey)) {
+		if (CTB_UNLIKELY(row >= jpgr->sizey)) {
 			break;
 		}
 
 		col = x << 3;
-		if (LIKELY(col + 8 <= jpgr->sizex)) {
+		if (CTB_LIKELY(col + 8 <= jpgr->sizex)) {
 			o = ((row * jpgr->sizex) + col) * 3;
 			setrow3(u1 + s, u2 + s, u3 + s, PRVT->pixels + o, torgb);
 			row++;
@@ -3100,7 +3100,7 @@ setpixels3ns(struct TJPGRPblc* jpgr, uintxx y, uintxx x, uintxx torgb)
 			int16 a3;
 			struct TJPGRGB r;
 
-			if (UNLIKELY(col >= jpgr->sizex)) {
+			if (CTB_UNLIKELY(col >= jpgr->sizex)) {
 				break;
 			}
 			a1 = u1[s + stepx];
@@ -3164,7 +3164,7 @@ setpixels3ss(struct TJPGRPblc* jpgr, uintxx y, uintxx x, uintxx torgb)
 			row2 = u2 + c2->umap[s] + (d2 & -0x08);
 			row3 = u3 + c3->umap[s] + (d3 & -0x08);
 #endif
-			if (UNLIKELY(row >= jpgr->sizey)) {
+			if (CTB_UNLIKELY(row >= jpgr->sizey)) {
 				break;
 			}
 
@@ -3242,7 +3242,7 @@ setpixels3ss(struct TJPGRPblc* jpgr, uintxx y, uintxx x, uintxx torgb)
 				int16 a3;
 				struct TJPGRGB r;
 
-				if (UNLIKELY(col >= jpgr->sizex)) {
+				if (CTB_UNLIKELY(col >= jpgr->sizex)) {
 					break;
 				}
 				a1 = u1[c1->umap[s + stepx] + d1];
@@ -3304,7 +3304,7 @@ decodebaseline(struct TJPGRPblc* jpgr)
 		for (y = 0; y < c->nrows; y++) {
 			for (x = 0; x < c->ncols; x++) {
 				if (PRVT->rinterval) {
-					if (UNLIKELY(interval == 0)) {
+					if (CTB_UNLIKELY(interval == 0)) {
 						if (checkinterval(jpgr) == 0) {
 							return 0;
 						}
@@ -3315,7 +3315,7 @@ decodebaseline(struct TJPGRPblc* jpgr)
 				}
 
 				block = c->scan + (((y * c->icols) + x) << 6);
-				if (UNLIKELY(decodeblock(jpgr, c, block) == 0)) {
+				if (CTB_UNLIKELY(decodeblock(jpgr, c, block) == 0)) {
 					return 0;
 				}
 			}
@@ -3331,7 +3331,7 @@ decodebaseline(struct TJPGRPblc* jpgr)
 		for (y = 0; y < c1->nrows; y++) {
 			for (x = 0; x < c1->ncols; x++) {
 				if (PRVT->rinterval) {
-					if (UNLIKELY(interval == 0)) {
+					if (CTB_UNLIKELY(interval == 0)) {
 						if (checkinterval(jpgr) == 0) {
 							return 0;
 						}
@@ -3341,11 +3341,11 @@ decodebaseline(struct TJPGRPblc* jpgr)
 					interval -= 1;
 				}
 
-				if (UNLIKELY(decodeblock(jpgr, c1, c1->units[0]) == 0)) {
+				if (CTB_UNLIKELY(decodeblock(jpgr, c1, c1->units[0]) == 0)) {
 					return 0;
 				}
 
-				if (LIKELY(PRVT->pixels != NULL)) {
+				if (CTB_LIKELY(PRVT->pixels != NULL)) {
 					inverseDCT(c1->units[0], c1->units[0], c1->qtable->values);
 					setpixels1(jpgr, y, x, c1->units[0]);
 				}
@@ -3370,7 +3370,7 @@ decodebaseline(struct TJPGRPblc* jpgr)
 		for (y = 0; y < PRVT->nrows; y++) {
 			for (x = 0; x < PRVT->ncols; x++) {
 				if (PRVT->rinterval) {
-					if (UNLIKELY(interval == 0)) {
+					if (CTB_UNLIKELY(interval == 0)) {
 						if (checkinterval(jpgr) == 0) {
 							return 0;
 						}
@@ -3380,16 +3380,16 @@ decodebaseline(struct TJPGRPblc* jpgr)
 					interval -= 1;
 				}
 
-				if (UNLIKELY(decodeblock(jpgr, c1, c1->units[0]) == 0)) {
+				if (CTB_UNLIKELY(decodeblock(jpgr, c1, c1->units[0]) == 0)) {
 					return 0;
 				}
-				if (UNLIKELY(decodeblock(jpgr, c2, c2->units[0]) == 0)) {
+				if (CTB_UNLIKELY(decodeblock(jpgr, c2, c2->units[0]) == 0)) {
 					return 0;
 				}
-				if (UNLIKELY(decodeblock(jpgr, c3, c3->units[0]) == 0)) {
+				if (CTB_UNLIKELY(decodeblock(jpgr, c3, c3->units[0]) == 0)) {
 					return 0;
 				}
-				if (LIKELY(PRVT->pixels != NULL)) {
+				if (CTB_LIKELY(PRVT->pixels != NULL)) {
 					inverseDCT(c1->units[0], c1->units[0], c1->qtable->values);
 					inverseDCT(c2->units[0], c2->units[0], c2->qtable->values);
 					inverseDCT(c3->units[0], c3->units[0], c3->qtable->values);
@@ -3403,7 +3403,7 @@ decodebaseline(struct TJPGRPblc* jpgr)
 	for (y = 0; y < PRVT->nrows; y++) {
 		for (x = 0; x < PRVT->ncols; x++) {
 			if (PRVT->rinterval) {
-				if (UNLIKELY(interval == 0)) {
+				if (CTB_UNLIKELY(interval == 0)) {
 					if (checkinterval(jpgr) == 0) {
 						return 0;
 					}
@@ -3419,14 +3419,14 @@ decodebaseline(struct TJPGRPblc* jpgr)
 
 				c = PRVT->components + PRVT->corder[i];
 				for (j = 0; j < c->ucount; j++) {
-					if (UNLIKELY(decodeblock(jpgr, c, c->units[j]) == 0)) {
+					if (CTB_UNLIKELY(decodeblock(jpgr, c, c->units[j]) == 0)) {
 						return 0;
 					}
 					inverseDCT(c->units[j], c->units[j], c->qtable->values);
 				}
 			}
 
-			if (LIKELY(PRVT->pixels != NULL)) {
+			if (CTB_LIKELY(PRVT->pixels != NULL)) {
 				setpixels3ss(jpgr, y, x, torgb);
 			}
 		}
@@ -3445,7 +3445,7 @@ decodefirstDC(struct TJPGRPblc* jpgr, struct TJPGComponent* c, uintxx index)
 
 	ensurebits(jpgr, 16);
 	s = decodesymbol((void*) c->dctable, getbits(jpgr, 16));
-	if (UNLIKELY(s == 0)) {
+	if (CTB_UNLIKELY(s == 0)) {
 		SETERROR(JPGR_EBADCODE);
 		return 0;
 	}
@@ -3496,7 +3496,7 @@ readfirstDC(struct TJPGRPblc* jpgr)
 					return 0;
 				}
 			}
-			if (UNLIKELY(overread(jpgr)) == 1) {
+			if (CTB_UNLIKELY(overread(jpgr)) == 1) {
 				return 0;
 			}
 		}
@@ -3540,7 +3540,7 @@ readfirstDC(struct TJPGRPblc* jpgr)
 				}
 			}
 		}
-		if (UNLIKELY(overread(jpgr)) == 1) {
+		if (CTB_UNLIKELY(overread(jpgr)) == 1) {
 			return 0;
 		}
 	}
@@ -3619,7 +3619,7 @@ refineDC(struct TJPGRPblc* jpgr)
 				}
 			}
 		}
-		if (UNLIKELY(overread(jpgr) == 1)) {
+		if (CTB_UNLIKELY(overread(jpgr) == 1)) {
 			return 0;
 		}
 	}
@@ -3650,7 +3650,7 @@ decodefirstAC(struct TJPGRPblc* jpgr, struct TJPGComponent* c, uintxx index)
 
 		ensurebits(jpgr, 16);
 		s = decodesymbol((void*) ac, getbits(jpgr, 16));
-		if (UNLIKELY(s == 0)) {
+		if (CTB_UNLIKELY(s == 0)) {
 			SETERROR(JPGR_EBADCODE);
 			return 0;
 		}
@@ -3721,7 +3721,7 @@ readfirstAC(struct TJPGRPblc* jpgr)
 				return 0;
 			}
 		}
-		if (UNLIKELY(overread(jpgr) == 1)) {
+		if (CTB_UNLIKELY(overread(jpgr) == 1)) {
 			return 0;
 		}
 	}
@@ -3777,7 +3777,7 @@ decoderefineAC(struct TJPGRPblc* jpgr, struct TJPGComponent* c, uintxx index)
 		ensurebits(jpgr, 16);
 
 		s = decodesymbol((void*) ac, getbits(jpgr, 16));
-		if (UNLIKELY(s == 0)) {
+		if (CTB_UNLIKELY(s == 0)) {
 			SETERROR(JPGR_EBADCODE);
 			return 0;
 		}
@@ -3883,7 +3883,7 @@ refineAC(struct TJPGRPblc* jpgr)
 				return 0;
 			}
 		}
-		if (UNLIKELY(overread(jpgr) == 1)) {
+		if (CTB_UNLIKELY(overread(jpgr) == 1)) {
 			return 0;
 		}
 	}
@@ -3903,7 +3903,7 @@ updateimg(struct TJPGRPblc* jpgr)
 	struct TJPGComponent* c;
 	void (*setpixels)(struct TJPGRPblc*, uintxx, uintxx, uintxx);
 
-	if (UNLIKELY(PRVT->pixels == NULL)) {
+	if (CTB_UNLIKELY(PRVT->pixels == NULL)) {
 		return;
 	}
 

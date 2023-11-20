@@ -321,7 +321,7 @@ readinput(struct TPNGRPblc* pngr, uint8* buffer, uintxx size)
 	intxx r;
 
 	r = PRVT->inputfn(buffer, size, PRVT->payload);
-	if (UNLIKELY(r ^ size)) {
+	if (CTB_UNLIKELY(r ^ size)) {
 		static const uintxx error[] = {
 			PNGR_EBADDATA,
 			PNGR_EIOERROR
@@ -2060,7 +2060,7 @@ fetchrow(struct TPNGRPblc* pngr, uint8* target, uintxx size)
 
 	for (total = size; total; ) {
 		avaible = (uintxx) (PRVT->tend - PRVT->tbgn);
-		if (LIKELY(avaible)) {
+		if (CTB_LIKELY(avaible)) {
 			j = avaible;
 			if (j > total) {
 				j = total;
@@ -2075,7 +2075,7 @@ fetchrow(struct TPNGRPblc* pngr, uint8* target, uintxx size)
 		else {
 			uintxx r;
 
-			if (UNLIKELY((r = inflateidat(pngr)) == 0)) {
+			if (CTB_UNLIKELY((r = inflateidat(pngr)) == 0)) {
 				return 0;
 			}
 			PRVT->tbgn = PRVT->target;
@@ -2276,8 +2276,8 @@ decoderow(struct TPNGRPblc* pngr, uintxx sizex, uintxx rowsize)
 	filter = curr[0];
 	curr++;
 	prev++;
-	if (LIKELY(filter)) {
-		if (UNLIKELY(filter > 4)) {
+	if (CTB_LIKELY(filter)) {
+		if (CTB_UNLIKELY(filter > 4)) {
 			SETERROR(PNGR_EBADDATA);
 			SETSTATE(PNGR_BADSTATE);
 			return NULL;
@@ -2285,7 +2285,7 @@ decoderow(struct TPNGRPblc* pngr, uintxx sizex, uintxx rowsize)
 		UNFILTER(curr, prev, rowsize - 1, (filter << 16) | PRVT->rawpelsize);
 	}
 
-	if (UNLIKELY(pngr->depth < 8)) {
+	if (CTB_UNLIKELY(pngr->depth < 8)) {
 		unpack(curr, sizex, pngr->depth);
 	}
 
@@ -2455,13 +2455,13 @@ pngr_decodeimg(TPNGReader* pngr)
 		uint8* row;
 
 		row = decoderow(PBLC, pngr->sizex, PRVT->rawrowsize);
-		if (UNLIKELY(row == NULL)) {
+		if (CTB_UNLIKELY(row == NULL)) {
 			SETSTATE(PNGR_BADSTATE);
 			return 0;
 		}
 
-		if (LIKELY(pixels != NULL)) {
-			if (UNLIKELY(pngr->colortype == 3)) {
+		if (CTB_LIKELY(pixels != NULL)) {
+			if (CTB_UNLIKELY(pngr->colortype == 3)) {
 				uintxx entry;
 
 				/* we don't check the range here */
@@ -2490,7 +2490,7 @@ pngr_decodeimg(TPNGReader* pngr)
 			}
 		}
 
-		if (LIKELY(idxs != NULL)) {
+		if (CTB_LIKELY(idxs != NULL)) {
 			for (j = 0; j < pngr->sizex; j++) {
 				idxs[j] = row[j];
 			}
@@ -2714,7 +2714,7 @@ pngr_decodepass(TPNGReader* pngr)
 		}
 
 		row = rowpointer;
-		if (LIKELY(PRVT->pixels != NULL)) {
+		if (CTB_LIKELY(PRVT->pixels != NULL)) {
 			offsetx = peloffsety;
 			if (PRVT->interpolate) {
 				uintxx sx;
@@ -2727,8 +2727,8 @@ pngr_decodepass(TPNGReader* pngr)
 
 					sx = pngr->sizex - x;
 					sy = pngr->sizey - y;
-					if (UNLIKELY(sx > passsizex[i])) sx = passsizex[i];
-					if (UNLIKELY(sy > passsizey[i])) sy = passsizey[i];
+					if (CTB_UNLIKELY(sx > passsizex[i])) sx = passsizex[i];
+					if (CTB_UNLIKELY(sy > passsizey[i])) sy = passsizey[i];
 
 					sample = getsample(PBLC, row, pixel);
 					fill(PBLC, offsetx, sample, sx, sy);
@@ -2760,7 +2760,7 @@ pngr_decodepass(TPNGReader* pngr)
 		}
 
 		row = rowpointer;
-		if (LIKELY(PRVT->idxs != NULL)) {
+		if (CTB_LIKELY(PRVT->idxs != NULL)) {
 			offsetx = idxoffsety;
 
 			for (x = ORIGIN_X(i); x < pngr->sizex; x += STEP_X(i)) {
