@@ -19,7 +19,7 @@
 
 /*
  * pngreader.h
- * An small PNG image loader.
+ * A small PNG image loader.
  *
  * ...
  */
