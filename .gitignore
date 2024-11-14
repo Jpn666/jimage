@@ -1,2 +1,4 @@
 .vscode
-*.o
+builddir/
+subprojects/ctoolbox/
+subprojects/jdeflate/
