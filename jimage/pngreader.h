@@ -25,6 +25,7 @@
  */
 
 #include "imageinfo.h"
+#include <ctoolbox/memory.h>
 
 
 /* Flag to toggle crc32 checksum check */
@@ -141,7 +142,7 @@ typedef const struct TPNGRPblc TPNGReader;
 
 /*
  * */
-TPNGReader* pngr_create(ePNGRFlags flags, TAllocator* allocator);
+TPNGReader* pngr_create(ePNGRFlags flags, TAllocator* allctr);
 
 /*
  * Destroys (and deallocates) the given PNG reader. */
@@ -149,7 +150,7 @@ void pngr_destroy(TPNGReader*);
 
 /*
  * Resets the reader. */
-void pngr_reset(TPNGReader*, bool fullreset);
+void pngr_reset(TPNGReader*);
 
 /*
  * Sets the input function. */

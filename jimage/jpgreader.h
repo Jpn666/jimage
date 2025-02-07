@@ -23,6 +23,7 @@
  */
 
 #include "imageinfo.h"
+#include <ctoolbox/memory.h>
 
 
 /* Progressive pass count limit */
@@ -117,7 +118,7 @@ typedef const struct TJPGRPblc TJPGReader;
 
 /*
  * */
-TJPGReader* jpgr_create(eJPGRFlags flags, TAllocator* allocator);
+TJPGReader* jpgr_create(eJPGRFlags flags, TAllocator* allctr);
 
 /*
  * Destroys (and deallocates) the given JPG reader. */
@@ -125,7 +126,7 @@ void jpgr_destroy(TJPGReader*);
 
 /*
  * Resets the reader. */
-void jpgr_reset(TJPGReader*, bool fullreset);
+void jpgr_reset(TJPGReader*);
 
 /*
  * Sets the input function used to read the image data. */

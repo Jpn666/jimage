@@ -157,11 +157,21 @@ struct TJPGRPrvt {
 	struct TJPGRPblc hidden;
 
 	/* custom allocator */
-	struct TAllocator* allocator;
+	struct TAllocator* allctr;
 
 	/* internal memory */
-	uint8* memory;
-	uintxx memorysize;
+	uint8* mainmemory;
+	uintxx mainmsize;
+
+	/* allocated memory for the ICC profile (if any) */
+	uint8* iccpmemory;
+	uint8* iccpappend;
+	uintxx iccpmsize;
+
+	/* used to read the profile */
+	uintxx iccpmode;
+	uint8  iccps1;
+	uint8  iccps2;
 
 	/* image properties */
 	uintxx ysampling;
@@ -220,17 +230,6 @@ struct TJPGRPrvt {
 
 	/* decoded image data */
 	uint8* pixels;
-
-	/* allocated memory for the ICC profile (if any) */
-	uint8* iccpmemory;
-	uint8* iccpappend;
-	uintxx iccpsize;
-
-	/* used to read the profile */
-	uintxx iccpmode;
-	uintxx iccptotal;
-	uint8  iccps1;
-	uint8  iccps2;
 
 	/* input callback */
 	TIMGInputFn inputfn;
@@ -326,42 +325,39 @@ struct TJPGRPrvt {
 #define PBLC ((struct TJPGRPblc*) jpgr)
 #define PRVT ((struct TJPGRPrvt*) jpgr)
 
-
 CTB_INLINE void*
-_reserve(struct TJPGRPrvt* p, uintxx amount)
+request_(struct TJPGRPrvt* p, uintxx amount)
 {
-	if (p->allocator) {
-		return p->allocator->reserve(p->allocator->user, amount);
-	}
-	return CTB_RESERVE(amount);
+	struct TAllocator* a;
+
+	a = p->allctr;
+	return a->request(amount, a->user);
 }
 
 CTB_INLINE void
-_release(struct TJPGRPrvt* p, void* memory)
+dispose_(struct TJPGRPrvt* p, void* memory, uintxx amount)
 {
-	if (p->allocator) {
-		p->allocator->release(p->allocator->user, memory);
-		return;
-	}
-	CTB_RELEASE(memory);
+	struct TAllocator* a;
+
+	a = p->allctr;
+	a->dispose(memory, amount, a->user);
 }
 
 TJPGReader*
-jpgr_create(eJPGRFlags flags, TAllocator* allocator)
+jpgr_create(eJPGRFlags flags, TAllocator* allctr)
 {
 	uintxx i;
 	struct TJPGRPblc* jpgr;
 
-	if (allocator) {
-		jpgr = allocator->reserve(allocator->user, sizeof(struct TJPGRPrvt));
+	if (allctr == NULL) {
+		allctr = (void*) ctb_defaultallocator(NULL);
 	}
-	else {
-		jpgr = CTB_RESERVE(sizeof(struct TJPGRPrvt));
-	}
+
+	jpgr = allctr->request(sizeof(struct TJPGRPrvt), allctr->user);
 	if (jpgr == NULL) {
 		return NULL;
 	}
-	PRVT->allocator = allocator;
+	PRVT->allctr = allctr;
 
 	/* align the quantization tables to 16 (we need this to use SIMD) */
 	for (i = 0; i < 4; i++) {
@@ -371,9 +367,9 @@ jpgr_create(eJPGRFlags flags, TAllocator* allocator)
 		qtable->values = (void*) ((((uintxx) qtable->storage) | 15) + 1);
 	}
 
-	PRVT->memory     = NULL;
+	PRVT->mainmemory = NULL;
 	PRVT->iccpmemory = NULL;
-	jpgr_reset(jpgr, 0);
+	jpgr_reset(jpgr);
 
 	PBLC->flags = flags;
 	return jpgr;
@@ -383,7 +379,7 @@ jpgr_create(eJPGRFlags flags, TAllocator* allocator)
 #define BUFFERSIZE (sizeof(((struct TJPGRPrvt*) NULL)->source))
 
 void
-jpgr_reset(TJPGReader* jpgr, bool fullreset)
+jpgr_reset(TJPGReader* jpgr)
 {
 	uintxx i;
 	struct TJPGComponent* c;
@@ -415,31 +411,20 @@ jpgr_reset(TJPGReader* jpgr, bool fullreset)
 	PRVT->isinterleaved = 0;
 	PRVT->issubsampled  = 0;
 
-	if (PRVT->memory) {
-		if (fullreset) {
-			_release(PRVT, PRVT->memory);
-			PRVT->memory     = NULL;
-			PRVT->memorysize = 0;
-		}
+	if (PRVT->mainmemory) {
+		dispose_(PRVT, PRVT->mainmemory, PRVT->mainmsize);
+		PRVT->mainmemory = NULL;
 	}
-	else {
-		PRVT->memorysize = 0;
-	}
+	PRVT->mainmsize = 0;
 
 	if (PRVT->iccpmemory) {
-		if (fullreset) {
-			_release(PRVT, PRVT->iccpmemory);
-			PRVT->iccpmemory = NULL;
-			PRVT->iccpsize   = 0;
-		}
+		dispose_(PRVT, PRVT->iccpmemory, PRVT->iccpmsize);
+		PRVT->iccpmemory = NULL;
 	}
-	else {
-		PRVT->iccpsize = 0;
-	}
+	PRVT->iccpmsize = 0;
 
 	PRVT->iccpappend = NULL;
 	PRVT->iccpmode  = 0;
-	PRVT->iccptotal = 0;
 	PRVT->iccps1 = 0;
 	PRVT->iccps2 = 0;
 
@@ -500,13 +485,13 @@ void
 jpgr_destroy(TJPGReader* jpgr)
 {
 	if (jpgr) {
-		if (PRVT->memory) {
-			_release(PRVT, PRVT->memory);
+		if (PRVT->mainmemory) {
+			dispose_(PRVT, PRVT->mainmemory, PRVT->mainmsize);
 		}
 		if (PRVT->iccpmemory) {
-			_release(PRVT, PRVT->iccpmemory);
+			dispose_(PRVT, PRVT->iccpmemory, PRVT->iccpmsize);
 		}
-		_release(PRVT, PBLC);
+		dispose_(PRVT, PBLC, sizeof(struct TJPGRPrvt));
 	}
 }
 
@@ -880,7 +865,7 @@ readiccp(struct TJPGRPblc* jpgr, uintxx remaining)
 	uint8* end;
 	uint8* s;
 
-	end = PRVT->iccpmemory + PRVT->iccptotal;
+	end = PRVT->iccpmemory + PRVT->iccpmsize;
 	bgn = PRVT->iccpappend;
 
 	r = remaining;
@@ -954,24 +939,18 @@ primeiccpchunk(struct TJPGRPblc* jpgr, uintxx r)
 		return 0;
 	}
 
-	if (total > PRVT->iccpsize) {
-		if (PRVT->iccpmemory) {
-			_release(PRVT, PRVT->iccpmemory);
-			PRVT->iccpmemory = NULL;
-			PRVT->iccpsize   = 0;
-		}
-		buffer = _reserve(PRVT, total);
-		if (buffer == NULL) {
-			SETERROR(JPGR_EOOM);
-			return 0;
-		}
-		PRVT->iccpmemory = buffer;
-		PRVT->iccpappend = buffer;
-		PRVT->iccpsize = total;
+	CTB_ASSERT(PRVT->iccpmemory == NULL);
+	buffer = request_(PRVT, total);
+	if (buffer == NULL) {
+		SETERROR(JPGR_EOOM);
+		return 0;
 	}
+	PRVT->iccpappend = buffer;
+	PRVT->iccpmemory = buffer;
+	PRVT->iccpmsize = total;
 
-	PRVT->iccptotal  = total;
-	PRVT->iccpappend = PRVT->iccpmemory;
+	//PRVT->iccptotal  = total;
+	//PRVT->iccpappend = PRVT->iccpmemory;
 
 	/* copy the header to the profile memory */
 	ctb_memcpy(PRVT->iccpappend, s, 0x80);
@@ -1065,7 +1044,7 @@ parseAPP2(struct TJPGRPblc* jpgr)
 	/* last sequence */
 	if (s1 == s2) {
 		jpgr->iccprofile = PRVT->iccpmemory;
-		jpgr->iccpsize   = PRVT->iccptotal;
+		jpgr->iccpsize   = PRVT->iccpmsize;
 		PRVT->iccpmode = 2;
 	}
 
@@ -1970,27 +1949,15 @@ jpgr_setbuffers(TJPGReader* jpgr, uint8* pixels)
 		return;
 	}
 
-	memory = NULL;
-	if (PRVT->memory) {
-		if (PRVT->memorysize > PBLC->requiredmemory) {
-			memory = PRVT->memory;
-		}
-		else {
-			_release(PRVT, PRVT->memory);
-			PRVT->memory     = NULL;
-			PRVT->memorysize = 0;
-		}
-	}
-
+	CTB_ASSERT(PRVT->mainmemory == NULL);
+	memory = request_(PRVT, PBLC->requiredmemory);
 	if (memory == NULL) {
-		memory = _reserve(PRVT, PBLC->requiredmemory);
-		if (memory == NULL) {
-			SETSTATE(JPGR_BADSTATE);
-			SETERROR(JPGR_EOOM);
-			return;
-		}
-		PRVT->memory = memory;
+		SETSTATE(JPGR_BADSTATE);
+		SETERROR(JPGR_EOOM);
+		return;
 	}
+	PRVT->mainmemory = memory;
+	PRVT->mainmsize  = PBLC->requiredmemory;
 
 	memory = (uint8*) ((((uintxx) memory) | 15) + 1);
 
@@ -2009,7 +1976,6 @@ jpgr_setbuffers(TJPGReader* jpgr, uint8* pixels)
 		uintxx n;
 
 		c = PRVT->components + i;
-
 		n = c->ucount;
 		if (PRVT->isinterleaved == 0) {
 			n = c->ysampling * c->xsampling;
