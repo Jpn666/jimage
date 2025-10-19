@@ -1,9 +1,9 @@
-project('jimage', 'c', default_options: ['c_std=c99', 'buildtype=release', 'warning_level=3'], version: run_command('python', join_paths(meson.current_source_dir(), 'tools/version.py'), check: true).stdout().strip())
+project('jimage', 'c', default_options: ['c_std=c99', 'warning_level=3'], version: run_command('python', join_paths(meson.current_source_dir(), 'tools/version.py'), check: true).stdout().strip())
 
 
 deps = []
-deps += [dependency('', fallback: ['ctoolbox', 'lib'])]
-deps += [dependency('', fallback: ['jdeflate', 'lib'])]
+deps += [dependency('', fallback: ['ctoolbox', 'ctoolbox_dep'])]
+deps += [dependency('', fallback: ['jdeflate', 'jdeflate_dep'])]
 
 cc = meson.get_compiler('c')
 if cc.get_id() == 'msvc'
