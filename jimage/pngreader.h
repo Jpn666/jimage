@@ -138,48 +138,58 @@ typedef struct TPNGReader TPNGReader;
 
 /*
  * */
+JIMAGE_API
 const TPNGReader* pngr_create(ePNGRFlags flags, const TAllocator*);
 
 /*
  * Destroys (and deallocates) the given PNG reader. */
+JIMAGE_API
 void pngr_destroy(const TPNGReader*);
 
 /*
  * Resets the reader. */
+JIMAGE_API
 void pngr_reset(const TPNGReader*);
 
 /*
  * Sets the input function. */
+JIMAGE_API
 void pngr_setinputfn(const TPNGReader*, TIMGInputFn fn, void* user);
 
 /*
  * Init the decoder and determines the required internal memory nedeed
  * to decode the image. */
+JIMAGE_API
 uintxx pngr_initdecoder(const TPNGReader*, TImageInfo* info);
 
 /*
  * Sets the target memory buffer for the decoded image and the index buffer
  * for indexed images, both (the pixel buffer and the index buffer) can be
  * NULL. */
+JIMAGE_API
 void pngr_setbuffers(const TPNGReader*, uint8* pixels, uint8* idxs);
 
 /*
  * Decodes the next pass of a progressive image, returns the next pass or zero
  * is there are not more passes or in case of error. */
+JIMAGE_API
 uintxx pngr_decodepass(const TPNGReader*);
 
 /*
  * Decodes the image to the image buffer (if set) or to the index buffer if
  * the index buffer is set and the image is indexed. */
+JIMAGE_API
 uintxx pngr_decodeimg(const TPNGReader*);
 
 /*
  * */
-CTB_INLINE bool pngr_isprogressive(const TPNGReader*);
+CTB_INLINE
+bool pngr_isprogressive(const TPNGReader*);
 
 /*
  * */
-CTB_INLINE bool pngr_isindexed(const TPNGReader*);
+CTB_INLINE
+bool pngr_isindexed(const TPNGReader*);
 
 
 /* chunks ids */
@@ -196,7 +206,8 @@ typedef enum {
 
 /*
  * */
-CTB_INLINE bool pngr_haspropertyof(const TPNGReader*, eTPNGRChunk chunks);
+CTB_INLINE
+bool pngr_haspropertyof(const TPNGReader*, eTPNGRChunk chunks);
 
 
 /* Non fatal errors */
@@ -211,7 +222,8 @@ typedef enum {
 
 /*
  * */
-CTB_INLINE ePNGRState pngr_getstate(const TPNGReader*, uintxx* error, uintxx* wrnns);
+CTB_INLINE
+ePNGRState pngr_getstate(const TPNGReader*, uintxx* error, uintxx* wrnns);
 
 
 /*

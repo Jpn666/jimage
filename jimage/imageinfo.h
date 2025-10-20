@@ -23,6 +23,7 @@
  */
 
 #include <ctoolbox/ctoolbox.h>
+#include <jimage/config/config.h>
 
 
 /* supported color modes for the resulting decoding */
@@ -61,11 +62,13 @@ typedef intxx (*TIMGInputFn)(uint8* buffer, uintxx size, void* user);
 
 /*
  * */
-CTB_INLINE uintxx imginfo_getpelsize(TImageInfo* imginfo);
+CTB_INLINE
+uintxx imginfo_getpelsize(TImageInfo* imginfo);
 
 /*
  * */
-CTB_INLINE uintxx imginfo_getrowsize(TImageInfo* imginfo);
+CTB_INLINE
+uintxx imginfo_getrowsize(TImageInfo* imginfo);
 
 
 /*

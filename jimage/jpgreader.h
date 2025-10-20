@@ -118,44 +118,54 @@ typedef struct TJPGReader TJPGReader;
 
 /*
  * */
+JIMAGE_API
 const TJPGReader* jpgr_create(eJPGRFlags flags, const TAllocator*);
 
 /*
  * Destroys (and deallocates) the given JPG reader. */
+JIMAGE_API
 void jpgr_destroy(const TJPGReader*);
 
 /*
  * Resets the reader. */
+JIMAGE_API
 void jpgr_reset(const TJPGReader*);
 
 /*
  * Sets the input function used to read the image data. */
+JIMAGE_API
 void jpgr_setinputfn(const TJPGReader*, TIMGInputFn fn, void* user);
 
 /*
  * Init the decoder and determines the required internal memory nedeed
  * to decode the image. */
+JIMAGE_API
 bool jpgr_initdecoder(const TJPGReader*, TImageInfo* info);
 
 /*
  * Sets the target memory buffer for the decoded image (the complete image). */
+JIMAGE_API
 void jpgr_setbuffers(const TJPGReader*, uint8* pixels);
 
 /*
  * Decodes the image to the image buffer (if set). */
+JIMAGE_API
 uintxx jpgr_decodeimg(const TJPGReader*);
 
 /*
  * */
+JIMAGE_API
 uintxx jpgr_decodepass(const TJPGReader*, bool update);
 
 /*
  * */
+JIMAGE_API
 void jpgr_updateimg(const TJPGReader*);
 
 /*
  * */
-CTB_INLINE bool jpgr_isprogressive(const TJPGReader*);
+CTB_INLINE
+bool jpgr_isprogressive(const TJPGReader*);
 
 
 /* Non fatal errors */
@@ -168,7 +178,8 @@ typedef enum {
 
 /*
  * */
-CTB_INLINE eJPGRState jpgr_getstate(const TJPGReader*, uintxx* error, uintxx* wrnns);
+CTB_INLINE
+eJPGRState jpgr_getstate(const TJPGReader*, uintxx* error, uintxx* wrnns);
 
 
 /*
