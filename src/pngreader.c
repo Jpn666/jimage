@@ -42,7 +42,7 @@
 /* private stuff */
 struct TPNGRPrvt {
 	/* public fields */
-	struct TPNGRPblc hidden;
+	struct TPNGReader public;
 
 	uintxx hasalpha;
 
@@ -118,20 +118,19 @@ struct TPNGRPrvt {
 	uint8 target[4096];
 
 	/* custom allocator */
-	struct TAllocator* allctr;
+	const struct TAllocator* allctr;
 };
 
 
 /* private and public cast, we only need PBLC to set values, only in the
  * exported functions */
-#define PBLC ((struct TPNGRPblc*) pngr)
-#define PRVT ((struct TPNGRPrvt*) pngr)
+#define PRVT ((struct TPNGRPrvt*)  pngr)
 
 
 CTB_INLINE void*
 request_(struct TPNGRPrvt* p, uintxx amount)
 {
-	struct TAllocator* a;
+	const struct TAllocator* a;
 
 	a = p->allctr;
 	return a->request(amount, a->user);
@@ -140,177 +139,185 @@ request_(struct TPNGRPrvt* p, uintxx amount)
 CTB_INLINE void
 dispose_(struct TPNGRPrvt* p, void* memory, uintxx amount)
 {
-	struct TAllocator* a;
+	const struct TAllocator* a;
 
 	a = p->allctr;
 	a->dispose(memory, amount, a->user);
 }
 
-TPNGReader*
-pngr_create(ePNGRFlags flags, TAllocator* allctr)
+const TPNGReader*
+pngr_create(ePNGRFlags flags, const TAllocator* allctr)
 {
-	struct TPNGRPblc* pngr;
+	struct TPNGRPrvt* pngr;
 
 	if (allctr == NULL) {
-		allctr = (void*) ctb_getdefaultallocator();
+		allctr = ctb_getdefaultallocator();
 	}
 
 	pngr = allctr->request(sizeof(struct TPNGRPrvt), allctr->user);
 	if (pngr == NULL) {
 		return NULL;
 	}
-	PRVT->allctr = allctr;
+	pngr->allctr = allctr;
 
-	if ((PRVT->inflator = inflator_create(0, allctr)) == NULL) {
-		dispose_(PRVT, pngr, sizeof(struct TPNGRPrvt));
+	if ((pngr->inflator = inflator_create(0, allctr)) == NULL) {
+		dispose_(pngr, pngr, sizeof(struct TPNGRPrvt));
 		return NULL;
 	}
-	PRVT->iccpmemory = NULL;
-	PRVT->mainmemory = NULL;
-	pngr_reset(pngr);
+	pngr->iccpmemory = NULL;
+	pngr->mainmemory = NULL;
+	pngr_reset((const TPNGReader*) pngr);
 
-	PBLC->flags = flags;
-	return pngr;
+	pngr->public.flags = flags;
+	return (const TPNGReader*) pngr;
 }
 
 
-#define SETERROR(ERROR) (PBLC->error = (ERROR))
-#define SETSTATE(STATE) (PBLC->state = (STATE))
+#define SETERROR(ERROR) (pngr->public.error = (ERROR))
+#define SETSTATE(STATE) (pngr->public.state = (STATE))
 
 void
-pngr_reset(TPNGReader* pngr)
+pngr_reset(const TPNGReader* state)
 {
 	uintxx i;
-	CTB_ASSERT(pngr);
+	struct TPNGRPrvt* pngr;
+	CTB_ASSERT(state);
+
+	pngr = CTB_CONSTCAST(state);
 
 	/* state */
-	PBLC->state = 0;
-	PBLC->error = 0;
-	PBLC->warnings   = 0;
-	PBLC->properties = 0;
+	pngr->public.state = 0;
+	pngr->public.error = 0;
+	pngr->public.warnings   = 0;
+	pngr->public.properties = 0;
 
 	/* header */
-	PBLC->sizex = 0;
-	PBLC->sizey = 0;
+	pngr->public.sizex = 0;
+	pngr->public.sizey = 0;
 
-	PBLC->colortype = 0;
-	PBLC->depth     = 0;
-	PBLC->requiredmemory = 0;
+	pngr->public.colortype = 0;
+	pngr->public.depth     = 0;
+	pngr->public.requiredmemory = 0;
 
-	PBLC->compression = 0;
-	PBLC->filter      = 0;
-	PBLC->interlace   = 0;
+	pngr->public.compression = 0;
+	pngr->public.filter      = 0;
+	pngr->public.interlace   = 0;
 
-	PBLC->palettesize = 0;
-	for (i = 0; i < sizeof(PBLC->palette); i++) {
-		PBLC->palette[i] = 0;
+	pngr->public.palettesize = 0;
+	for (i = 0; i < sizeof(pngr->public.palette); i++) {
+		pngr->public.palette[i] = 0;
 	}
 
-	PBLC->alpha[0] = 0;
-	PBLC->alpha[1] = 0;
-	PBLC->alpha[2] = 0;
-	PBLC->background[0] = 0;
-	PBLC->background[1] = 0;
-	PBLC->background[2] = 0;
+	pngr->public.alpha[0] = 0;
+	pngr->public.alpha[1] = 0;
+	pngr->public.alpha[2] = 0;
+	pngr->public.background[0] = 0;
+	pngr->public.background[1] = 0;
+	pngr->public.background[2] = 0;
 
-	for (i = 0; i < sizeof(PBLC->sbits); i++) {
-		PBLC->sbits[i] = 0;
+	for (i = 0; i < sizeof(pngr->public.sbits); i++) {
+		pngr->public.sbits[i] = 0;
 	}
 
-	PBLC->gamma = 0.f;
+	pngr->public.gamma = 0.f;
 
-	PBLC->wpointx = 0.f;
-	PBLC->wpointy = 0.f;
-	PBLC->chromax[0] = PBLC->chromay[0] = 0.f;
-	PBLC->chromax[1] = PBLC->chromay[1] = 0.f;
-	PBLC->chromax[2] = PBLC->chromay[1] = 0.f;
+	pngr->public.wpointx = 0.f;
+	pngr->public.wpointy = 0.f;
+	pngr->public.chromax[0] = pngr->public.chromay[0] = 0.f;
+	pngr->public.chromax[1] = pngr->public.chromay[1] = 0.f;
+	pngr->public.chromax[2] = pngr->public.chromay[1] = 0.f;
 
-	PBLC->srgbintent = 0;
+	pngr->public.srgbintent = 0;
 
-	PBLC->iccpname[0] = 0;
-	PBLC->iccprofile  = NULL;
-	PBLC->iccpsize    = 0;
-	PBLC->iccpchecksum = 0;
+	pngr->public.iccpname[0] = 0;
+	pngr->public.iccprofile  = NULL;
+	pngr->public.iccpsize    = 0;
+	pngr->public.iccpchecksum = 0;
 
-	PBLC->physx = 0;
-	PBLC->physy = 0;
-	PBLC->physunit = 0;
+	pngr->public.physx = 0;
+	pngr->public.physy = 0;
+	pngr->public.physunit = 0;
 
 	/* private stuff */
-	PRVT->chunkmap = (struct TPNGRChunkMap) {0, 0, 0, 0, 0, 0, 0, 0, 0};
-	PRVT->hasalpha = 0;
+	pngr->chunkmap = (struct TPNGRChunkMap) {0, 0, 0, 0, 0, 0, 0, 0, 0};
+	pngr->hasalpha = 0;
 
-	PRVT->crc32 = 0;
-	PRVT->docrc = 0;
+	pngr->crc32 = 0;
+	pngr->docrc = 0;
 
-	PRVT->interpolate = 0;
-	PRVT->pass = 0;
+	pngr->interpolate = 0;
+	pngr->pass = 0;
 
-	PRVT->pixels = NULL;
-	PRVT->idxs   = NULL;
+	pngr->pixels = NULL;
+	pngr->idxs   = NULL;
 
-	if (PRVT->mainmemory) {
-		dispose_(PRVT, PRVT->mainmemory, PRVT->mainmsize);
-		PRVT->mainmemory = NULL;
+	if (pngr->mainmemory) {
+		dispose_(pngr, pngr->mainmemory, pngr->mainmsize);
+		pngr->mainmemory = NULL;
 	}
-	PRVT->mainmsize = 0;
+	pngr->mainmsize = 0;
 
-	if (PRVT->iccpmemory) {
-		dispose_(PRVT, PRVT->iccpmemory, PRVT->iccpmsize);
-		PRVT->iccpmemory = NULL;
+	if (pngr->iccpmemory) {
+		dispose_(pngr, pngr->iccpmemory, pngr->iccpmsize);
+		pngr->iccpmemory = NULL;
 	}
-	PRVT->iccpmsize = 0;
+	pngr->iccpmsize = 0;
 
-	PRVT->inputsize = 0;
-	PRVT->remaining = 0;
-	PRVT->source[0] = 0xff;
+	pngr->inputsize = 0;
+	pngr->remaining = 0;
+	pngr->source[0] = 0xff;
 
-	PRVT->payload = NULL;
-	PRVT->inputfn = NULL;
-	inflator_reset(PRVT->inflator);
+	pngr->payload = NULL;
+	pngr->inputfn = NULL;
+	inflator_reset(pngr->inflator);
 }
 
 void
-pngr_destroy(TPNGReader* pngr)
+pngr_destroy(const TPNGReader* state)
 {
+	struct TPNGRPrvt* pngr;
+
+	pngr = CTB_CONSTCAST(state);
 	if (pngr == NULL) {
 		return;
 	}
 
-	if (PRVT->mainmemory) {
-		dispose_(PRVT, PRVT->mainmemory, PRVT->mainmsize);
+	if (pngr->mainmemory) {
+		dispose_(pngr, pngr->mainmemory, pngr->mainmsize);
 	}
-	if (PRVT->iccpmemory) {
-		dispose_(PRVT, PRVT->iccpmemory, PRVT->iccpmsize);
+	if (pngr->iccpmemory) {
+		dispose_(pngr, pngr->iccpmemory, pngr->iccpmsize);
 	}
-	inflator_destroy(PRVT->inflator);
-	dispose_(PRVT, PBLC, sizeof(struct TPNGRPrvt));
+	inflator_destroy(pngr->inflator);
+	dispose_(pngr, pngr, sizeof(struct TPNGRPrvt));
 }
 
 void
-pngr_setinputfn(TPNGReader* pngr, TIMGInputFn fn, void* user)
+pngr_setinputfn(const TPNGReader* state, TIMGInputFn fn, void* user)
 {
-	CTB_ASSERT(pngr);
+	struct TPNGRPrvt* pngr;
+	CTB_ASSERT(state);
 
-	if (pngr->state) {
+	pngr = CTB_CONSTCAST(state);
+	if (pngr->public.state) {
 		SETSTATE(PNGR_BADSTATE);
-		if (pngr->error == 0) {
+		if (pngr->public.error == 0) {
 			SETERROR(PNGR_EINCORRECTUSE);
 		}
 		return;
 	}
 
-	PRVT->inputfn = fn;
-	PRVT->payload = user;
+	pngr->inputfn = fn;
+	pngr->payload = user;
 }
 
 CTB_INLINE bool
-readinput(struct TPNGRPblc* pngr, uint8* buffer, uintxx size)
+readinput(struct TPNGRPrvt* pngr, uint8* buffer, uintxx size)
 {
 	intxx r;
 
-	r = PRVT->inputfn(buffer, size, PRVT->payload);
-	if (CTB_EXPECT0(r ^ size)) {
+	r = pngr->inputfn(buffer, size, pngr->payload);
+	if (CTB_EXPECT0((uintxx) r ^ size)) {
 		static const uintxx error[] = {
 			PNGR_EBADDATA,
 			PNGR_EIOERROR
@@ -321,8 +328,8 @@ readinput(struct TPNGRPblc* pngr, uint8* buffer, uintxx size)
 	}
 
 #if DOCRC
-	if (PRVT->docrc) {
-		PRVT->crc32 = crc32_update(PRVT->crc32, buffer, size);
+	if (pngr->docrc) {
+		pngr->crc32 = crc32_update(pngr->crc32, buffer, size);
 	}
 #endif
 	return 1;
@@ -342,7 +349,7 @@ struct TChunkHead {
 };
 
 CTB_INLINE struct TChunkHead
-getchunkhead(struct TPNGRPblc* pngr)
+getchunkhead(struct TPNGRPrvt* pngr)
 {
 	struct TChunkHead head;
 	uint8 s[8];
@@ -384,11 +391,12 @@ getchunkhead(struct TPNGRPblc* pngr)
 #if DOCRC
 
 CTB_INLINE void
-initcrc32(struct TPNGRPblc* pngr, uint32 crc)
+initcrc32(struct TPNGRPrvt* pngr, uint32 crc)
 {
-	PRVT->crc32 = crc;
-	if ((pngr->flags & PNGR_NOCRCCHECK) == 0)
-		PRVT->docrc = 1;
+	pngr->crc32 = crc;
+	if ((pngr->flags & PNGR_NOCRCCHECK) == 0) {
+		pngr->docrc = 1;
+	}
 }
 
 #endif
@@ -401,20 +409,20 @@ initcrc32(struct TPNGRPblc* pngr, uint32 crc)
 
 
 CTB_INLINE void
-checkcrc32(struct TPNGRPblc* pngr)
+checkcrc32(struct TPNGRPrvt* pngr)
 {
 	uint8 s[4];
 #if DOCRC
 	bool check;
 
-	check = PRVT->docrc;
-	PRVT->docrc = 0;
+	check = pngr->docrc;
+	pngr->docrc = 0;
 	if (readinput(pngr, s, 4)) {
 		if (check) {
 			uint32 crc32;
 
 			crc32 = TOI32(s[0], s[1], s[2], s[3]);
-			if (crc32 != (PRVT->crc32 ^ 0xffffffff)) {
+			if (crc32 != (pngr->crc32 ^ 0xffffffff)) {
 				SETERROR(PNGR_EBADCRC);
 			}
 		}
@@ -426,7 +434,7 @@ checkcrc32(struct TPNGRPblc* pngr)
 
 
 CTB_INLINE bool
-checksignature(struct TPNGRPblc* pngr)
+checksignature(struct TPNGRPrvt* pngr)
 {
 	static const uint8 signature[8] = {
 		0x89,
@@ -460,8 +468,7 @@ isvalidmode(uintxx colordepth, uintxx colortype)
 {
 	switch (colortype) {
 		case 0:
-			if (colordepth == 1 ||
-				colordepth == 2 || colordepth == 4) {
+			if (colordepth == 1 || colordepth == 2 || colordepth == 4) {
 				return 1;
 			}
 			/* fallthrough */
@@ -483,51 +490,54 @@ isvalidmode(uintxx colordepth, uintxx colortype)
 }
 
 static bool
-parseIHDR(struct TPNGRPblc* pngr, struct TChunkHead head)
+parseIHDR(struct TPNGRPrvt* pngr, struct TChunkHead head)
 {
 	uint8 *s;
 
 	INITCRC32(pngr, CRC32_IHDR);
-	s = PRVT->source;
+	s = pngr->source;
 	if (head.length ^ 13 || readinput(pngr, s, 13) == 0) {
 		return 0;
 	}
 
-	pngr->sizex = TOI32(s[0], s[1], s[2], s[3]);
-	pngr->sizey = TOI32(s[4], s[5], s[6], s[7]);
-	if (pngr->sizey == 0 || pngr->sizey > 0x7fffffff ||
-		pngr->sizex == 0 || pngr->sizex > 0x7fffffff) {
+	pngr->public.sizex = TOI32(s[0], s[1], s[2], s[3]);
+	pngr->public.sizey = TOI32(s[4], s[5], s[6], s[7]);
+	if (pngr->public.sizey == 0 || pngr->public.sizey > 0x7fffffff ||
+		pngr->public.sizex == 0 || pngr->public.sizex > 0x7fffffff) {
 		goto L_ERROR;
 	}
 
 	/* image properties */
-	pngr->depth       = s[ 8];
-	pngr->colortype   = s[ 9];
-	pngr->compression = s[10];
-	pngr->filter      = s[11];
-	pngr->interlace   = s[12];
+	pngr->public.depth       = s[ 8];
+	pngr->public.colortype   = s[ 9];
+	pngr->public.compression = s[10];
+	pngr->public.filter      = s[11];
+	pngr->public.interlace   = s[12];
 
 	checkcrc32(pngr);
-	if (pngr->error) {
+	if (pngr->public.error) {
 		return 0;
 	}
 
-	if (isvalidmode(pngr->depth, pngr->colortype)) {
+	if (isvalidmode(pngr->public.depth, pngr->public.colortype)) {
 		/* only compresion method 0 is defined by the standard (deflate), the
 		 * same for filter method */
-		if ((pngr->compression | pngr->filter) || pngr->interlace > 1) {
+		if (pngr->public.compression | pngr->public.filter) {
+			goto L_ERROR;
+		}
+		if (pngr->public.interlace > 1) {
 			goto L_ERROR;
 		}
 
 		/* set the color palette to red */
-		if (pngr->colortype == 3) {
+		if (pngr->public.colortype == 3) {
 			uintxx i;
 
 			for (i = 0; i < 256; i++) {
-				pngr->palette[(i * 4) + 0] = 0xff;
-				pngr->palette[(i * 4) + 1] = 0x00;
-				pngr->palette[(i * 4) + 2] = 0x00;
-				pngr->palette[(i * 4) + 3] = 0xff;
+				pngr->public.palette[(i * 4) + 0] = 0xff;
+				pngr->public.palette[(i * 4) + 1] = 0x00;
+				pngr->public.palette[(i * 4) + 2] = 0x00;
+				pngr->public.palette[(i * 4) + 3] = 0xff;
 			}
 		}
 		return 1;
@@ -539,7 +549,7 @@ L_ERROR:
 }
 
 CTB_INLINE bool
-readzlibheader(struct TPNGRPblc* pngr)
+readzlibheader(struct TPNGRPrvt* pngr)
 {
 	uintxx i;
 	uintxx cm;
@@ -549,9 +559,9 @@ readzlibheader(struct TPNGRPblc* pngr)
 	/* since it's part of an IDAT chuck these 2 bytes can be on diferent
 	 * chunks */
 	for (i = 0; i < 2;) {
-		if (PRVT->remaining) {
+		if (pngr->remaining) {
 			if (readinput(pngr, s + i, 1)) {
-				PRVT->remaining--;
+				pngr->remaining--;
 				i++;
 				continue;
 			}
@@ -561,20 +571,20 @@ readzlibheader(struct TPNGRPblc* pngr)
 			struct TChunkHead head;
 
 			checkcrc32(pngr);
-			if (pngr->error) {
+			if (pngr->public.error) {
 				return 0;
 			}
 			head = getchunkhead(pngr);
 			if (head.fcc[0] != 'I' ||
 				head.fcc[1] != 'D' ||
 				head.fcc[2] != 'A' || head.fcc[3] != 'T') {
-				if (pngr->error == 0)
+				if (pngr->public.error == 0)
 					SETERROR(PNGR_EBADDATA);
 				return 0;
 			}
 
 			INITCRC32(pngr, CRC32_IDAT);
-			PRVT->remaining = head.length;
+			pngr->remaining = head.length;
 		}
 	}
 
@@ -603,23 +613,23 @@ L_ERROR:
 
 
 /* critical chunks */
-static bool parsePLTE(struct TPNGRPblc*, struct TChunkHead);
+static bool parsePLTE(struct TPNGRPrvt*, struct TChunkHead);
 
 /* ancillary chunks */
-static bool parseSBIT(struct TPNGRPblc*, struct TChunkHead);
-static bool parseTRNS(struct TPNGRPblc*, struct TChunkHead);
-static bool parseCHRM(struct TPNGRPblc*, struct TChunkHead);
-static bool parseGAMA(struct TPNGRPblc*, struct TChunkHead);
-static bool parseICCP(struct TPNGRPblc*, struct TChunkHead);
-static bool parseSRGB(struct TPNGRPblc*, struct TChunkHead);
-static bool parseBKGD(struct TPNGRPblc*, struct TChunkHead);
-static bool parsePHYS(struct TPNGRPblc*, struct TChunkHead);
+static bool parseSBIT(struct TPNGRPrvt*, struct TChunkHead);
+static bool parseTRNS(struct TPNGRPrvt*, struct TChunkHead);
+static bool parseCHRM(struct TPNGRPrvt*, struct TChunkHead);
+static bool parseGAMA(struct TPNGRPrvt*, struct TChunkHead);
+static bool parseICCP(struct TPNGRPrvt*, struct TChunkHead);
+static bool parseSRGB(struct TPNGRPrvt*, struct TChunkHead);
+static bool parseBKGD(struct TPNGRPrvt*, struct TChunkHead);
+static bool parsePHYS(struct TPNGRPrvt*, struct TChunkHead);
 
-static bool parseancillary(struct TPNGRPblc*, uint32, struct TChunkHead);
+static bool parseancillary(struct TPNGRPrvt*, uint32, struct TChunkHead);
 
 
-uintxx
-parsechunks(struct TPNGRPblc* pngr)
+static uintxx
+parsechunks(struct TPNGRPrvt* pngr)
 {
 	uint32 fcc;
 
@@ -627,7 +637,7 @@ parsechunks(struct TPNGRPblc* pngr)
 		struct TChunkHead head;
 
 		head = getchunkhead(pngr);
-		if (pngr->error) {
+		if (pngr->public.error) {
 			/* failed to read the chunk head */
 			return 0;
 		}
@@ -635,14 +645,14 @@ parsechunks(struct TPNGRPblc* pngr)
 		fcc = TOI32(head.fcc[0], head.fcc[1], head.fcc[2], head.fcc[3]);
 		switch (fcc) {
 			case TOI32('I', 'E', 'N', 'D'):
-				if (pngr->state == 4) {
-					if (pngr->error) {
+				if (pngr->public.state == 4) {
+					if (pngr->public.error) {
 						return 0;
 					}
 
 					INITCRC32(pngr, CRC32_IEND);
 					checkcrc32(pngr);
-					if (pngr->error) {
+					if (pngr->public.error) {
 						return 0;
 					}
 					return 1;
@@ -656,27 +666,27 @@ parsechunks(struct TPNGRPblc* pngr)
 
 			case TOI32('P', 'L', 'T', 'E'):
 				if (parsePLTE(pngr, head) == 0) {
-					if (pngr->error == 0)
+					if (pngr->public.error == 0)
 						SETERROR(PNGR_EBADDATA);
 					return 0;
 				}
 				continue;
 
 			case TOI32('I', 'D', 'A', 'T'):
-				if (pngr->state == 4) {
+				if (pngr->public.state == 4) {
 					SETERROR(PNGR_ECHUNKORDER);
 					return 0;
 				}
 
-				if (pngr->colortype == 3) {
-					if (pngr->palettesize == 0) {
+				if (pngr->public.colortype == 3) {
+					if (pngr->public.palettesize == 0) {
 						SETERROR(PNGR_EMISSINGCHUNK);
 						return 0;
 					}
 				}
 
 				INITCRC32(pngr, CRC32_IDAT);
-				PRVT->remaining = head.length;
+				pngr->remaining = head.length;
 				if (readzlibheader(pngr)) {
 					return 1;
 				}
@@ -687,7 +697,7 @@ parsechunks(struct TPNGRPblc* pngr)
 		}
 
 		if (parseancillary(pngr, fcc, head) == 0) {
-			if (pngr->error == 0) {
+			if (pngr->public.error == 0) {
 				SETERROR(PNGR_EBADDATA);
 			}
 			break;
@@ -697,16 +707,16 @@ parsechunks(struct TPNGRPblc* pngr)
 }
 
 CTB_INLINE bool
-consumechunk(struct TPNGRPblc* pngr, uintxx total)
+consumechunk(struct TPNGRPrvt* pngr, uintxx total)
 {
 	uintxx j;
 
 	while (total) {
-		j = sizeof(PRVT->source);
+		j = sizeof(pngr->source);
 		if (j > total)
 			j = total;
 
-		if (readinput(pngr, PRVT->source, j) == 0) {
+		if (readinput(pngr, pngr->source, j) == 0) {
 			return 0;
 		}
 		total -= j;
@@ -715,7 +725,7 @@ consumechunk(struct TPNGRPblc* pngr, uintxx total)
 }
 
 static bool
-parseancillary(struct TPNGRPblc* pngr, uint32 fcc, struct TChunkHead head)
+parseancillary(struct TPNGRPrvt* pngr, uint32 fcc, struct TChunkHead head)
 {
 	switch (fcc) {
 		/* ancillary chunks */
@@ -789,7 +799,7 @@ parseancillary(struct TPNGRPblc* pngr, uint32 fcc, struct TChunkHead head)
 		}
 	}
 	checkcrc32(pngr);
-	if (pngr->error) {
+	if (pngr->public.error) {
 		return 0;
 	}
 	return 1;
@@ -827,7 +837,7 @@ static const struct TPassInfo passinfo[] = {
 
 
 CTB_INLINE void
-setuppasses(struct TPNGRPblc* pngr)
+setuppasses(struct TPNGRPrvt* pngr)
 {
 	uintxx sizex;
 	uintxx sizey;
@@ -837,26 +847,28 @@ setuppasses(struct TPNGRPblc* pngr)
 		uint8 shiftx[] = {3, 3, 2, 2, 1, 1, 0};
 		uint8 shifty[] = {3, 3, 3, 2, 2, 1, 1};
 
-		sizex = (pngr->sizex + STEP_X(i) - ORIGIN_X(i) - 1) >> shiftx[i];
-		sizey = (pngr->sizey + STEP_Y(i) - ORIGIN_Y(i) - 1) >> shifty[i];
+		sizex = pngr->public.sizex + STEP_X(i) - ORIGIN_X(i) - 1;
+		sizey = pngr->public.sizey + STEP_Y(i) - ORIGIN_Y(i) - 1;
+		sizex = sizex >> shiftx[i];
+		sizey = sizey >> shifty[i];
 		if (sizex == 0 || sizey == 0) {
-			PRVT->passrowsize[i] = 0;
+			pngr->passrowsize[i] = 0;
 			continue;
 		}
 
-		PRVT->passrowsize[i] = sizex;
-		if (pngr->depth < 8) {
+		pngr->passrowsize[i] = sizex;
+		if (pngr->public.depth < 8) {
 			uint64 v;
 
-			v = ((uint64) pngr->depth * sizex) + 7;
-			PRVT->passmemsize[i] = (uintxx) (v >> 3) + 1;
+			v = ((uint64) pngr->public.depth * sizex) + 7;
+			pngr->passmemsize[i] = (uintxx) (v >> 3) + 1;
 			continue;
 		}
 
-		PRVT->passmemsize[i] = sizex * PRVT->rawpelsize;
-		PRVT->passmemsize[i]++;
+		pngr->passmemsize[i] = sizex * pngr->rawpelsize;
+		pngr->passmemsize[i]++;
 	}
-	PRVT->interpolate = 1;
+	pngr->interpolate = 1;
 }
 
 CTB_INLINE bool
@@ -896,7 +908,7 @@ checklimits(uintxx sizex, uintxx sizey, uintxx pelsize)
 }
 
 CTB_INLINE bool
-setvalues(struct TPNGRPblc* pngr, struct TImageInfo* info)
+setvalues(struct TPNGRPrvt* pngr, struct TImageInfo* info)
 {
 	static const uintxx cmap[] = {
 		1, 0, 3, 1, 2, 0, 4
@@ -905,9 +917,9 @@ setvalues(struct TPNGRPblc* pngr, struct TImageInfo* info)
 	uintxx mode;
 	uintxx r;
 
-	switch (pngr->colortype) {
+	switch (pngr->public.colortype) {
 		case 0:
-			if (PRVT->hasalpha) {
+			if (pngr->hasalpha) {
 				mode = IMAGE_GRAYALPHA;
 				break;
 			}
@@ -915,7 +927,7 @@ setvalues(struct TPNGRPblc* pngr, struct TImageInfo* info)
 			break;
 		case 2:
 		case 3:
-			if (PRVT->hasalpha) {
+			if (pngr->hasalpha) {
 				mode = IMAGE_RGBALPHA;
 				break;
 			}
@@ -931,107 +943,109 @@ setvalues(struct TPNGRPblc* pngr, struct TImageInfo* info)
 			mode = 0;
 	}
 
-	r = pelsize = cmap[pngr->colortype];
-	if (pngr->colortype == 3) {
+	r = pelsize = cmap[pngr->public.colortype];
+	if (pngr->public.colortype == 3) {
 		pelsize += 2;
 	}
-	if (PRVT->hasalpha) {
+	if (pngr->hasalpha) {
 		pelsize++;
 	}
 
-	if (pngr->depth == 16) {
+	if (pngr->public.depth == 16) {
 		pelsize = pelsize << 1;
 	}
-	if (checklimits(pngr->sizex, pngr->sizey, pelsize) == 0) {
+	if (checklimits(pngr->public.sizex, pngr->public.sizey, pelsize) == 0) {
 		return 0;
 	}
-	r = r * ((pngr->depth + 7) >> 3);
+	r = r * ((pngr->public.depth + 7) >> 3);
 
-	PRVT->rawrowsize = PRVT->rowmemory = (pngr->sizex * r) + 1;
+	PRVT->rawrowsize = PRVT->rowmemory = (pngr->public.sizex * r) + 1;
 	PRVT->rawpelsize = r;
-	if (pngr->depth < 8) {
+	if (pngr->public.depth < 8) {
 		uint64 v;
 
-		v = ((uint64) pngr->depth * pngr->sizex) + 7;
-		PRVT->rawrowsize = (uintxx) (v >> 3) + 1;
+		v = ((uint64) pngr->public.depth * pngr->public.sizex) + 7;
+		pngr->rawrowsize = (uintxx) (v >> 3) + 1;
 
 		/* extra bytes to do bit expansion on the row */
-		switch (pngr->depth) {
-			case 1: PRVT->rowmemory += (8 - 1); break;
-			case 2: PRVT->rowmemory += (4 - 1); break;
-			case 4: PRVT->rowmemory += (2 - 1); break;
+		switch (pngr->public.depth) {
+			case 1: pngr->rowmemory += (8 - 1); break;
+			case 2: pngr->rowmemory += (4 - 1); break;
+			case 4: pngr->rowmemory += (2 - 1); break;
 			default:
 				break;
 		}
 	}
 
 	/* extra bytes */
-	PRVT->rowmemory += 16;
+	pngr->rowmemory += 16;
 
-	PRVT->rowsize = pelsize * pngr->sizex;
-	PRVT->pelsize = pelsize;
+	pngr->rowsize = pelsize * pngr->public.sizex;
+	pngr->pelsize = pelsize;
 
 	/* sets the imageinfo struct */
-	info->sizex = pngr->sizex;
-	info->sizey = pngr->sizey;
+	info->sizex = pngr->public.sizex;
+	info->sizey = pngr->public.sizey;
 	info->colortype = mode;
 
 	info->depth = 8;
-	if (pngr->depth == 16) {
+	if (pngr->public.depth == 16) {
 		info->depth = 16;
 	}
-	info->size = imginfo_getrowsize(info) * pngr->sizey;
+	info->size = imginfo_getrowsize(info) * pngr->public.sizey;
 
 	return 1;
 }
 
 uintxx
-pngr_initdecoder(TPNGReader* pngr, TImageInfo* info)
+pngr_initdecoder(const TPNGReader* state, TImageInfo* info)
 {
-	CTB_ASSERT(pngr && info);
+	struct TPNGRPrvt* pngr;
+	CTB_ASSERT(state && info);
 
-	if (pngr->state) {
-		if (pngr->error == 0) {
+	pngr = CTB_CONSTCAST(state);
+	if (pngr->public.state) {
+		if (pngr->public.error == 0) {
 			SETERROR(PNGR_EINCORRECTUSE);
 		}
 		goto L_ERROR;
 	}
 
 	/* at this point we need an input function */
-	if (PRVT->inputfn == NULL) {
+	if (pngr->inputfn == NULL) {
 		SETERROR(PNGR_EIOERROR);
 		goto L_ERROR;
 	}
 
-	if (checksignature(PBLC)) {
+	if (checksignature(pngr)) {
 		struct TChunkHead head;
 
-		head = getchunkhead(PBLC);
+		head = getchunkhead(pngr);
 		if (head.fcc[0] != 'I' ||
 			head.fcc[1] != 'H' ||
 			head.fcc[2] != 'D' || head.fcc[3] != 'R') {
-			if (pngr->error == 0) {
+			if (pngr->public.error == 0) {
 				SETERROR(PNGR_EBADDATA);
 			}
 			goto L_ERROR;
 		}
 
 		/* parse all the chunks until the first IDAT chunk */
-		if (parseIHDR(PBLC, head) && parsechunks(PBLC)) {
-			if (setvalues(PBLC, info)) {
-				if (pngr->interlace) {
-					setuppasses(PBLC);
+		if (parseIHDR(pngr, head) && parsechunks(pngr)) {
+			if (setvalues(pngr, info)) {
+				if (pngr->public.interlace) {
+					setuppasses(pngr);
 				}
 
 				/* sets the decompression stuff ready */
-				PRVT->tbgn = PRVT->target;
-				PRVT->tend = PRVT->target;
+				pngr->tbgn = pngr->target;
+				pngr->tend = pngr->target;
 
-				PRVT->result = INFLT_SRCEXHSTD;
+				pngr->result = INFLT_SRCEXHSTD;
 
 				/* ready to start decoding */
 				SETSTATE(1);
-				PBLC->requiredmemory = PRVT->rowmemory << 1;
+				pngr->public.requiredmemory = pngr->rowmemory << 1;
 				return 1;
 			}
 
@@ -1040,55 +1054,58 @@ pngr_initdecoder(TPNGReader* pngr, TImageInfo* info)
 	}
 
 L_ERROR:
-	if (pngr->error == 0)
+	if (pngr->public.error == 0) {
 		SETERROR(PNGR_EBADDATA);
+	}
 	SETSTATE(PNGR_BADSTATE);
 	return 0;
 }
 
 void
-pngr_setbuffers(TPNGReader* pngr, uint8* pixels, uint8* idxs)
+pngr_setbuffers(const TPNGReader* state, uint8* pixels, uint8* idxs)
 {
 	uintxx i;
-	CTB_ASSERT(pngr);
+	struct TPNGRPrvt* pngr;
+	CTB_ASSERT(state);
 
-	if (pngr->state ^ 1) {
+	pngr = CTB_CONSTCAST(state);
+	if (pngr->public.state ^ 1) {
 		SETSTATE(PNGR_BADSTATE);
-		if (pngr->error == 0) {
+		if (pngr->public.error == 0) {
 			SETERROR(PNGR_EINCORRECTUSE);
 		}
 		return;
 	}
 
-	CTB_ASSERT(PRVT->mainmemory == NULL);
-	PRVT->mainmemory = request_(PRVT, PBLC->requiredmemory);
-	if (PRVT->mainmemory == NULL) {
+	CTB_ASSERT(pngr->mainmemory == NULL);
+	pngr->mainmemory = request_(pngr, pngr->public.requiredmemory);
+	if (pngr->mainmemory == NULL) {
 		SETSTATE(PNGR_BADSTATE);
 		SETERROR(PNGR_EOOM);
 		return;
 	}
-	PRVT->mainmsize = PBLC->requiredmemory;
+	pngr->mainmsize = pngr->public.requiredmemory;
 
-	PRVT->rbuffers[0] = PRVT->mainmemory;
-	PRVT->rbuffers[1] = PRVT->mainmemory + PRVT->rowmemory;
+	pngr->rbuffers[0] = pngr->mainmemory;
+	pngr->rbuffers[1] = pngr->mainmemory + pngr->rowmemory;
 
-	PRVT->currrow = PRVT->rbuffers[0];
-	PRVT->prevrow = PRVT->rbuffers[1];
-	if (pngr->interlace == 0) {
-		for (i = 0; i < PRVT->rowmemory; i++) {
-			PRVT->prevrow[i] = 0;
+	pngr->currrow = pngr->rbuffers[0];
+	pngr->prevrow = pngr->rbuffers[1];
+	if (pngr->public.interlace == 0) {
+		for (i = 0; i < pngr->rowmemory; i++) {
+			pngr->prevrow[i] = 0;
 		}
 	}
 
-	PRVT->pixels = pixels;
-	if (pngr->colortype == 3) {
-		PRVT->idxs = idxs;
+	pngr->pixels = pixels;
+	if (pngr->public.colortype == 3) {
+		pngr->idxs = idxs;
 	}
 	SETSTATE(2);
 }
 
 static bool
-parsePLTE(struct TPNGRPblc* pngr, struct TChunkHead head)
+parsePLTE(struct TPNGRPrvt* pngr, struct TChunkHead head)
 {
 	uint8* s;
 	uintxx psize;
@@ -1096,18 +1113,18 @@ parsePLTE(struct TPNGRPblc* pngr, struct TChunkHead head)
 	uintxx i;
 	uintxx j;
 
-	if (PRVT->chunkmap.PLTE) {
+	if (pngr->chunkmap.PLTE) {
 		SETERROR(PNGR_EDUPLICATEDCHUNK);
 		return 0;
 	}
-	if (pngr->state == 4) {
+	if (pngr->public.state == 4) {
 		SETERROR(PNGR_ECHUNKORDER);
 		return 0;
 	}
-	PRVT->chunkmap.PLTE = 1;
+	pngr->chunkmap.PLTE = 1;
 
 	/* it shall not appear for colour types 0 and 4 */
-	if (pngr->colortype == 0 || pngr->colortype == 4) {
+	if (pngr->public.colortype == 0 || pngr->public.colortype == 4) {
 		return 0;
 	}
 	if (head.length > 0x300) {
@@ -1123,8 +1140,8 @@ parsePLTE(struct TPNGRPblc* pngr, struct TChunkHead head)
 	/* the number of palette entries shall not exceed the range that can be
 	 * represented in the image bit depth */
 	limit = 0xff;
-	if (pngr->colortype == 3) {
-		limit = ((uintxx) 1) << pngr->depth;
+	if (pngr->public.colortype == 3) {
+		limit = ((uintxx) 1) << pngr->public.depth;
 	}
 	if (psize > limit) {
 		return 0;
@@ -1132,8 +1149,8 @@ parsePLTE(struct TPNGRPblc* pngr, struct TChunkHead head)
 
 	INITCRC32(pngr, CRC32_PLTE);
 
-	s = pngr->palette;
-	pngr->palettesize = psize;
+	s = pngr->public.palette;
+	pngr->public.palettesize = psize;
 	if (readinput(pngr, s, head.length) == 0) {
 		return 0;
 	}
@@ -1142,61 +1159,64 @@ parsePLTE(struct TPNGRPblc* pngr, struct TChunkHead head)
 	j = psize * 4;
 	i = psize * 3;
 	while (i) {
-		pngr->palette[--j] = 0xff;
-		pngr->palette[--j] = pngr->palette[--i];
-		pngr->palette[--j] = pngr->palette[--i];
-		pngr->palette[--j] = pngr->palette[--i];
+		pngr->public.palette[--j] = 0xff;
+		pngr->public.palette[--j] = pngr->public.palette[--i];
+		pngr->public.palette[--j] = pngr->public.palette[--i];
+		pngr->public.palette[--j] = pngr->public.palette[--i];
 	}
 
 	checkcrc32(pngr);
-	if (pngr->error) {
+	if (pngr->public.error) {
 		return 0;
 	}
 	return 1;
 }
 
 
-#define SETPROPERTY(P) (pngr->properties |= (P))
-#define  ADDWARNING(W) (pngr->warnings   |= (W))
+#define SETPROPERTY(P) (pngr->public.properties |= (P))
+#define  ADDWARNING(W) (pngr->public.warnings   |= (W))
 
 static bool
-parseTRNS(struct TPNGRPblc* pngr, struct TChunkHead head)
+parseTRNS(struct TPNGRPrvt* pngr, struct TChunkHead head)
 {
 	uint8 *s;
 
-	if (PRVT->chunkmap.TRNS) {
+	if (pngr->chunkmap.TRNS) {
 		SETERROR(PNGR_EDUPLICATEDCHUNK);
 		return 0;
 	}
-	if (pngr->state == 4) {
+	if (pngr->public.state == 4) {
 		SETERROR(PNGR_ECHUNKORDER);
 		return 0;
 	}
 	else {
-		if (pngr->colortype == 3) {
-			if (PRVT->chunkmap.PLTE == 0) {
+		if (pngr->public.colortype == 3) {
+			if (pngr->chunkmap.PLTE == 0) {
 				SETERROR(PNGR_ECHUNKORDER);
 				return 0;
 			}
 		}
 	}
-	PRVT->chunkmap.TRNS = 1;
+	pngr->chunkmap.TRNS = 1;
 
 	/* a tRNS chunk shall not appear for colour types 4 and 6, since a full
 	 * alpha channel is already present in those cases */
-	if (pngr->colortype == 4 || pngr->colortype == 6) {
+	if (pngr->public.colortype == 4 || pngr->public.colortype == 6) {
 		return 0;
 	}
 
 	INITCRC32(pngr, CRC32_TRNS);
-	s = PRVT->source;
-	if (pngr->colortype == 3) {
+	s = pngr->source;
+	if (pngr->public.colortype == 3) {
 		intxx i;
 
 		/* the tRNS chunk shall not contain more alpha values than there are
 		 * palette entries, but a tRNS chunk may contain fewer values than
 		 * there are palette entries */
-		if (pngr->palettesize == 0 || head.length > pngr->palettesize) {
+		if (head.length > pngr->public.palettesize) {
+			return 0;
+		}
+		if (pngr->public.palettesize == 0) {
 			return 0;
 		}
 
@@ -1204,79 +1224,79 @@ parseTRNS(struct TPNGRPblc* pngr, struct TChunkHead head)
 			return 0;
 		}
 		for (i = 0; (intxx) head.length > i; i++) {
-			pngr->palette[(i * 4) + 3] = s[i];
+			pngr->public.palette[(i * 4) + 3] = s[i];
 		}
 	}
 	else {
-		if (pngr->colortype == 0) {
+		if (pngr->public.colortype == 0) {
 			if (head.length != 2 || readinput(pngr, s, 2) == 0) {
 				return 0;
 			}
 
-			if (pngr->colortype ^ 16) {
-				pngr->alpha[0] = (uint16) s[1];
+			if (pngr->public.colortype ^ 16) {
+				pngr->public.alpha[0] = (uint16) s[1];
 			}
 			else {
-				pngr->alpha[0] = TOI16(s[0], s[1]);
+				pngr->public.alpha[0] = TOI16(s[0], s[1]);
 			}
 			/* unused values are zero */
 		}
-		if (pngr->colortype == 2) {
+		if (pngr->public.colortype == 2) {
 			if (head.length != 6 || readinput(pngr, s, 6) == 0) {
 				return 0;
 			}
 
-			if (pngr->colortype ^ 16) {
-				pngr->alpha[0] = (uint16) s[1];
-				pngr->alpha[1] = (uint16) s[3];
-				pngr->alpha[2] = (uint16) s[5];
+			if (pngr->public.colortype ^ 16) {
+				pngr->public.alpha[0] = (uint16) s[1];
+				pngr->public.alpha[1] = (uint16) s[3];
+				pngr->public.alpha[2] = (uint16) s[5];
 			}
 			else {
-				pngr->alpha[0] = TOI16(s[0], s[1]);
-				pngr->alpha[1] = TOI16(s[2], s[3]);
-				pngr->alpha[2] = TOI16(s[4], s[5]);
+				pngr->public.alpha[0] = TOI16(s[0], s[1]);
+				pngr->public.alpha[1] = TOI16(s[2], s[3]);
+				pngr->public.alpha[2] = TOI16(s[4], s[5]);
 			}
 		}
 
 		SETPROPERTY(PNGR_TRNS);
 	}
-	PRVT->hasalpha = 1;
+	pngr->hasalpha = 1;
 
 	checkcrc32(pngr);
-	if (pngr->error) {
+	if (pngr->public.error) {
 		return 0;
 	}
 	return 1;
 }
 
 static bool
-parseCHRM(struct TPNGRPblc* pngr, struct TChunkHead head)
+parseCHRM(struct TPNGRPrvt* pngr, struct TChunkHead head)
 {
 	uintxx i;
 	uint32 a;
 	uint32 b;
 	uint8* s;
 
-	if (PRVT->chunkmap.CHRM) {
+	if (pngr->chunkmap.CHRM) {
 		SETERROR(PNGR_EDUPLICATEDCHUNK);
 		return 0;
 	}
-	if (pngr->state == 4) {
+	if (pngr->public.state == 4) {
 		SETERROR(PNGR_ECHUNKORDER);
 		return 0;
 	}
 	else {
-		if (pngr->colortype == 3) {
-			if (PRVT->chunkmap.PLTE) {
+		if (pngr->public.colortype == 3) {
+			if (pngr->chunkmap.PLTE) {
 				SETERROR(PNGR_ECHUNKORDER);
 				return 0;
 			}
 		}
 	}
-	PRVT->chunkmap.CHRM = 1;
+	pngr->chunkmap.CHRM = 1;
 
 	INITCRC32(pngr, CRC32_CHRM);
-	s = PRVT->source;
+	s = pngr->source;
 	if (head.length != 32 || readinput(pngr, s, 32) == 0) {
 		return 0;
 	}
@@ -1285,8 +1305,8 @@ parseCHRM(struct TPNGRPblc* pngr, struct TChunkHead head)
 	 * representing the x or y value times 100000 */
 	a = TOI32(s[0], s[1], s[2], s[3]); s += 4;
 	b = TOI32(s[0], s[1], s[2], s[3]); s += 4;
-	pngr->wpointx = a * 0.00001f;
-	pngr->wpointy = b * 0.00001f;
+	pngr->public.wpointx = (flt32) a * 0.00001f;
+	pngr->public.wpointy = (flt32) b * 0.00001f;
 
 	if (a == 0 || b == 0) {
 		ADDWARNING(PNGR_BADCHRM);
@@ -1296,50 +1316,50 @@ parseCHRM(struct TPNGRPblc* pngr, struct TChunkHead head)
 		a = TOI32(s[0], s[1], s[2], s[3]); s += 4;
 		b = TOI32(s[0], s[1], s[2], s[3]); s += 4;
 
-		pngr->chromax[i] = a * 0.00001f;
-		pngr->chromay[i] = b * 0.00001f;
+		pngr->public.chromax[i] = (flt32) a * 0.00001f;
+		pngr->public.chromay[i] = (flt32) b * 0.00001f;
 		if (a == 0 || b == 0) {
 			ADDWARNING(PNGR_BADCHRM);
 		}
 	}
 
 	checkcrc32(pngr);
-	if (pngr->error) {
+	if (pngr->public.error) {
 		return 0;
 	}
 
-	if ((pngr->warnings & PNGR_BADCHRM) == 0) {
+	if ((pngr->public.warnings & PNGR_BADCHRM) == 0) {
 		SETPROPERTY(PNGR_CHRM);
 	}
 	return 1;
 }
 
 static bool
-parseGAMA(struct TPNGRPblc* pngr, struct TChunkHead head)
+parseGAMA(struct TPNGRPrvt* pngr, struct TChunkHead head)
 {
 	uintxx n;
 	uint8* s;
 
-	if (PRVT->chunkmap.GAMA) {
+	if (pngr->chunkmap.GAMA) {
 		SETERROR(PNGR_EDUPLICATEDCHUNK);
 		return 0;
 	}
-	if (pngr->state == 4) {
+	if (pngr->public.state == 4) {
 		SETERROR(PNGR_ECHUNKORDER);
 		return 0;
 	}
 	else {
-		if (pngr->colortype == 3) {
-			if (PRVT->chunkmap.PLTE) {
+		if (pngr->public.colortype == 3) {
+			if (pngr->chunkmap.PLTE) {
 				SETERROR(PNGR_ECHUNKORDER);
 				return 0;
 			}
 		}
 	}
-	PRVT->chunkmap.GAMA = 1;
+	pngr->chunkmap.GAMA = 1;
 
 	INITCRC32(pngr, CRC32_GAMA);
-	s = PRVT->source;
+	s = pngr->source;
 	if (head.length != 4 || readinput(pngr, s, 4) == 0) {
 		return 0;
 	}
@@ -1347,7 +1367,7 @@ parseGAMA(struct TPNGRPblc* pngr, struct TChunkHead head)
 	/* the value is encoded as a four-byte PNG unsigned integer,
 	 * representing gamma times 100000 */
 	n = TOI32(s[0], s[1], s[2], s[3]);
-	pngr->gamma = n * 0.00001f;
+	pngr->public.gamma = (flt32) n * 0.00001f;
 
 	if (n == 0) {
 		ADDWARNING(PNGR_BADGAMA);
@@ -1357,7 +1377,7 @@ parseGAMA(struct TPNGRPblc* pngr, struct TChunkHead head)
 	}
 
 	checkcrc32(pngr);
-	if (pngr->error) {
+	if (pngr->public.error) {
 		return 0;
 	}
 
@@ -1365,33 +1385,33 @@ parseGAMA(struct TPNGRPblc* pngr, struct TChunkHead head)
 }
 
 static bool
-parseSBIT(struct TPNGRPblc* pngr, struct TChunkHead head)
+parseSBIT(struct TPNGRPrvt* pngr, struct TChunkHead head)
 {
 	uintxx size;
 	uintxx j;
 	uintxx i;
 	uint8* s;
 
-	if (PRVT->chunkmap.SBIT) {
+	if (pngr->chunkmap.SBIT) {
 		SETERROR(PNGR_EDUPLICATEDCHUNK);
 		return 0;
 	}
-	if (pngr->state == 4) {
+	if (pngr->public.state == 4) {
 		SETERROR(PNGR_ECHUNKORDER);
 		return 0;
 	}
 	else {
-		if (pngr->colortype == 3) {
-			if (PRVT->chunkmap.PLTE) {
+		if (pngr->public.colortype == 3) {
+			if (pngr->chunkmap.PLTE) {
 				SETERROR(PNGR_ECHUNKORDER);
 				return 0;
 			}
 		}
 	}
-	PRVT->chunkmap.SBIT = 1;
+	pngr->chunkmap.SBIT = 1;
 
 	size = 0;
-	switch (pngr->colortype) {
+	switch (pngr->public.colortype) {
 		case 0: size = 1; break;
 		case 2:
 		case 3: size = 3; break;
@@ -1404,13 +1424,13 @@ parseSBIT(struct TPNGRPblc* pngr, struct TChunkHead head)
 	/* each depth specified in sBIT shall be greater than zero and less than
 	 * or equal to the sample depth (which is 8 for indexed-colour images,
 	 * and the bit depth given in IHDR for other colour types) */
-	s = pngr->sbits;
+	s = pngr->public.sbits;
 	if (head.length != size || readinput(pngr, s, size) == 0) {
 		return 0;
 	}
 
-	j = pngr->depth;
-	if (pngr->colortype == 3)
+	j = pngr->public.depth;
+	if (pngr->public.colortype == 3)
 		j = 8;
 
 	for (i = 0; i < size; i++) {
@@ -1422,7 +1442,7 @@ parseSBIT(struct TPNGRPblc* pngr, struct TChunkHead head)
 	}
 
 	checkcrc32(pngr);
-	if (pngr->error) {
+	if (pngr->public.error) {
 		return 0;
 	}
 
@@ -1433,27 +1453,27 @@ parseSBIT(struct TPNGRPblc* pngr, struct TChunkHead head)
 }
 
 static bool
-parseSRGB(struct TPNGRPblc* pngr, struct TChunkHead head)
+parseSRGB(struct TPNGRPrvt* pngr, struct TChunkHead head)
 {
 	uint8 s[1];
 
-	if (PRVT->chunkmap.SRGB) {
+	if (pngr->chunkmap.SRGB) {
 		SETERROR(PNGR_EDUPLICATEDCHUNK);
 		return 0;
 	}
-	if (pngr->state == 4) {
+	if (pngr->public.state == 4) {
 		SETERROR(PNGR_ECHUNKORDER);
 		return 0;
 	}
 	else {
-		if (pngr->colortype == 3) {
-			if (PRVT->chunkmap.PLTE) {
+		if (pngr->public.colortype == 3) {
+			if (pngr->chunkmap.PLTE) {
 				SETERROR(PNGR_ECHUNKORDER);
 				return 0;
 			}
 		}
 	}
-	PRVT->chunkmap.SRGB = 1;
+	pngr->chunkmap.SRGB = 1;
 
 	INITCRC32(pngr, CRC32_SRGB);
 
@@ -1463,13 +1483,13 @@ parseSRGB(struct TPNGRPblc* pngr, struct TChunkHead head)
 	}
 
 	checkcrc32(pngr);
-	if (pngr->error) {
+	if (pngr->public.error) {
 		return 0;
 	}
 
 	if (s[0] < 4) {
 		SETPROPERTY(PNGR_SRGB);
-		pngr->srgbintent = s[0];
+		pngr->public.srgbintent = s[0];
 	}
 	else {
 		ADDWARNING(PNGR_BADSRGB);
@@ -1478,32 +1498,32 @@ parseSRGB(struct TPNGRPblc* pngr, struct TChunkHead head)
 }
 
 static bool
-parseBKGD(struct TPNGRPblc* pngr, struct TChunkHead head)
+parseBKGD(struct TPNGRPrvt* pngr, struct TChunkHead head)
 {
 	uintxx size;
 	uintxx entry;
 	uint8* s;
 
-	if (PRVT->chunkmap.BKGD) {
+	if (pngr->chunkmap.BKGD) {
 		SETERROR(PNGR_EDUPLICATEDCHUNK);
 		return 0;
 	}
-	if (pngr->state == 4) {
+	if (pngr->public.state == 4) {
 		SETERROR(PNGR_ECHUNKORDER);
 		return 0;
 	}
 	else {
-		if (pngr->colortype == 3) {
-			if (PRVT->chunkmap.PLTE == 0) {
+		if (pngr->public.colortype == 3) {
+			if (pngr->chunkmap.PLTE == 0) {
 				SETERROR(PNGR_ECHUNKORDER);
 				return 0;
 			}
 		}
 	}
-	PRVT->chunkmap.BKGD = 1;
+	pngr->chunkmap.BKGD = 1;
 
 	size = 0;
-	switch (pngr->colortype) {
+	switch (pngr->public.colortype) {
 		case 0: size = 2; break;
 		case 2:
 		case 6: size = 6; break;
@@ -1511,7 +1531,7 @@ parseBKGD(struct TPNGRPblc* pngr, struct TChunkHead head)
 	}
 
 	INITCRC32(pngr, CRC32_BKGD);
-	s = PRVT->source;
+	s = pngr->source;
 	if (head.length != size || readinput(pngr, s, size) == 0) {
 		return 0;
 	}
@@ -1522,21 +1542,21 @@ parseBKGD(struct TPNGRPblc* pngr, struct TChunkHead head)
 		if (PRVT->hasalpha) {
 			entry += s[0];
 		}
-		pngr->background[0] = pngr->palette[entry + 0];
-		pngr->background[1] = pngr->palette[entry + 1];
-		pngr->background[2] = pngr->palette[entry + 2];
+		pngr->public.background[0] = pngr->public.palette[entry + 0];
+		pngr->public.background[1] = pngr->public.palette[entry + 1];
+		pngr->public.background[2] = pngr->public.palette[entry + 2];
 	}
 	else {
-		pngr->background[0] = TOI16(s[0], s[1]);
+		pngr->public.background[0] = TOI16(s[0], s[1]);
 		s += 2;
 		if (size > 2) {
-			pngr->background[1] = TOI16(s[0], s[1]); s += 2;
-			pngr->background[2] = TOI16(s[0], s[1]); s += 2;
+			pngr->public.background[1] = TOI16(s[0], s[1]); s += 2;
+			pngr->public.background[2] = TOI16(s[0], s[1]); s += 2;
 		}
 	}
 
 	checkcrc32(pngr);
-	if (pngr->error) {
+	if (pngr->public.error) {
 		return 0;
 	}
 
@@ -1545,37 +1565,37 @@ parseBKGD(struct TPNGRPblc* pngr, struct TChunkHead head)
 }
 
 static bool
-parsePHYS(struct TPNGRPblc* pngr, struct TChunkHead head)
+parsePHYS(struct TPNGRPrvt* pngr, struct TChunkHead head)
 {
 	uint8* s;
 
-	if (PRVT->chunkmap.PHYS) {
+	if (pngr->chunkmap.PHYS) {
 		SETERROR(PNGR_EDUPLICATEDCHUNK);
 		return 0;
 	}
-	if (pngr->state == 4) {
+	if (pngr->public.state == 4) {
 		SETERROR(PNGR_ECHUNKORDER);
 		return 0;
 	}
-	PRVT->chunkmap.PHYS = 1;
+	pngr->chunkmap.PHYS = 1;
 
 	INITCRC32(pngr, CRC32_PHYS);
-	s = PRVT->source;
+	s = pngr->source;
 	if (head.length != 9 || readinput(pngr, s, 9) == 0) {
 		return 0;
 	}
-	pngr->physx = TOI32(s[0], s[1], s[2], s[3]); s += 4;
-	pngr->physy = TOI32(s[0], s[1], s[2], s[3]); s += 4;
+	pngr->public.physx = TOI32(s[0], s[1], s[2], s[3]); s += 4;
+	pngr->public.physy = TOI32(s[0], s[1], s[2], s[3]); s += 4;
 
 	checkcrc32(pngr);
-	if (pngr->error) {
+	if (pngr->public.error) {
 		return 0;
 	}
 
 	/* the following values are defined for the unit specifier:
 	 * 0 unit is unknown
 	 * 1 unit is the metre */
-	pngr->physunit = s[0];
+	pngr->public.physunit = s[0];
 	if (s[0] == 0 || s[0] == 1) {
 		SETPROPERTY(PNGR_PHYS);
 	}
@@ -1646,7 +1666,7 @@ filterstring(uint8* src, uint8* dst, uintxx size)
 }
 
 static bool
-readiccprofile(struct TPNGRPblc* pngr, uintxx size)
+readiccprofile(struct TPNGRPrvt* pngr, uintxx size)
 {
 	uintxx r;
 	uintxx total;
@@ -1662,7 +1682,7 @@ readiccprofile(struct TPNGRPblc* pngr, uintxx size)
 	if (total > size)
 		total = size;
 
-	s = PRVT->source;
+	s = pngr->source;
 	remaining  = 0;
 	profile    = NULL;
 	profileend = NULL;
@@ -1673,7 +1693,7 @@ readiccprofile(struct TPNGRPblc* pngr, uintxx size)
 		if (s[r] == 0x00)
 			break;
 	}
-	filterstring(s, pngr->iccpname, r);
+	filterstring(s, pngr->public.iccpname, r);
 
 	/* compresion method + zlib header */
 	if (readinput(pngr, s, 3) == 0) {
@@ -1690,35 +1710,35 @@ readiccprofile(struct TPNGRPblc* pngr, uintxx size)
 	headerdone = 0;
 
 	result = INFLT_SRCEXHSTD;
-	inflator_settgt(PRVT->inflator, PRVT->target, 0x80);
+	inflator_settgt(pngr->inflator, pngr->target, 0x80);
 	for (;;) {
 		if (result == INFLT_TGTEXHSTD) {
-			if (headerdone || inflator_tgtend(PRVT->inflator) != 0x80) {
+			if (headerdone || inflator_tgtend(pngr->inflator) != 0x80) {
 				goto L_ERROR;
 			}
 
-			total = checkiccheader(PRVT->target);
+			total = checkiccheader(pngr->target);
 			if (total == 0) {
 				goto L_ERROR;
 			}
 
-			CTB_ASSERT(PRVT->iccpmemory == NULL);
-			PRVT->iccpmemory = request_(PRVT, total);
-			if (PRVT->iccpmemory == NULL) {
+			CTB_ASSERT(pngr->iccpmemory == NULL);
+			pngr->iccpmemory = request_(pngr, total);
+			if (pngr->iccpmemory == NULL) {
 				SETERROR(PNGR_EOOM);
 				return 0;
 			}
-			PRVT->iccpmsize = total;
+			pngr->iccpmsize = total;
 
-			profile    = PRVT->iccpmemory;
+			profile    = pngr->iccpmemory;
 			profileend = profile + total;
 
 			/* copy the header */
-			ctb_memcpy(profile, PRVT->target, 0x80);
+			ctb_memcpy(profile, pngr->target, 0x80);
 
 			/* now we are decoding it to the final memory location */
 			profile += 0x80;
-			inflator_settgt(PRVT->inflator, profile, total - 0x80);
+			inflator_settgt(pngr->inflator, profile, total - 0x80);
 			headerdone = 1;
 		}
 		else {
@@ -1731,7 +1751,7 @@ readiccprofile(struct TPNGRPblc* pngr, uintxx size)
 					r = remaining;
 
 				if (readinput(pngr, s, r)) {
-					inflator_setsrc(PRVT->inflator, s, (PRVT->inputsize = r));
+					inflator_setsrc(pngr->inflator, s, (pngr->inputsize = r));
 					remaining -= r;
 				}
 				else {
@@ -1740,19 +1760,19 @@ readiccprofile(struct TPNGRPblc* pngr, uintxx size)
 			}
 		}
 
-		result = inflator_inflate(PRVT->inflator, 0);
+		result = inflator_inflate(pngr->inflator, 0);
 		if (result == INFLT_OK) {
 			uintxx left;
 
-			profile += inflator_tgtend(PRVT->inflator);
+			profile += inflator_tgtend(pngr->inflator);
 			if (profileend != profile) {
 				goto L_ERROR;
 			}
 
-			left = PRVT->inputsize - (r = inflator_srcend(PRVT->inflator));
+			left = pngr->inputsize - (r = inflator_srcend(pngr->inflator));
 			if (left >= 4) {
 				s = s + r;
-				pngr->iccpchecksum = TOI32(s[0], s[1], s[2], s[3]);
+				pngr->public.iccpchecksum = TOI32(s[0], s[1], s[2], s[3]);
 			}
 			else {
 				/* truncated checksum */
@@ -1767,7 +1787,7 @@ readiccprofile(struct TPNGRPblc* pngr, uintxx size)
 					if (readinput(pngr, s + left, left) == 0) {
 						return 0;
 					}
-					pngr->iccpchecksum = TOI32(s[0], s[1], s[2], s[3]);
+					pngr->public.iccpchecksum = TOI32(s[0], s[1], s[2], s[3]);
 					remaining -= left;
 				}
 				else {
@@ -1783,13 +1803,13 @@ readiccprofile(struct TPNGRPblc* pngr, uintxx size)
 			}
 
 			checkcrc32(pngr);
-			if (pngr->error) {
+			if (pngr->public.error) {
 				return 0;
 			}
-			pngr->iccprofile = PRVT->iccpmemory;
-			pngr->iccpsize   = total;
+			pngr->public.iccprofile = PRVT->iccpmemory;
+			pngr->public.iccpsize   = total;
 
-			inflator_reset(PRVT->inflator);
+			inflator_reset(pngr->inflator);
 			return 1;
 		}
 		else {
@@ -1806,35 +1826,35 @@ L_ERROR:
 		}
 	}
 	checkcrc32(pngr);
-	if (pngr->error) {
+	if (pngr->public.error) {
 		return 0;
 	}
-	pngr->iccpname[0] = 0;
+	pngr->public.iccpname[0] = 0;
 
-	inflator_reset(PRVT->inflator);
+	inflator_reset(pngr->inflator);
 	return 0;
 }
 
 static bool
-parseICCP(struct TPNGRPblc* pngr, struct TChunkHead head)
+parseICCP(struct TPNGRPrvt* pngr, struct TChunkHead head)
 {
-	if (PRVT->chunkmap.ICCP) {
+	if (pngr->chunkmap.ICCP) {
 		SETERROR(PNGR_EDUPLICATEDCHUNK);
 		return 0;
 	}
-	if (pngr->state == 4) {
+	if (pngr->public.state == 4) {
 		SETERROR(PNGR_ECHUNKORDER);
 		return 0;
 	}
 	else {
-		if (pngr->colortype == 3) {
-			if (PRVT->chunkmap.PLTE) {
+		if (pngr->public.colortype == 3) {
+			if (pngr->chunkmap.PLTE) {
 				SETERROR(PNGR_ECHUNKORDER);
 				return 0;
 			}
 		}
 	}
-	PRVT->chunkmap.ICCP = 1;
+	pngr->chunkmap.ICCP = 1;
 
 	if (head.length > MAXCHUNKSIZE) {
 		SETERROR(PNGR_ELIMIT);
@@ -1842,14 +1862,14 @@ parseICCP(struct TPNGRPblc* pngr, struct TChunkHead head)
 	}
 
 	INITCRC32(pngr, CRC32_ICCP);
-	if (pngr->flags & PNGR_IGNOREICCP) {
+	if (pngr->public.flags & PNGR_IGNOREICCP) {
 		if (head.length) {
 			if (consumechunk(pngr, head.length) == 0) {
 				return 0;
 			}
 		}
 		checkcrc32(pngr);
-		if (pngr->error) {
+		if (pngr->public.error) {
 			return 0;
 		}
 		return 1;
@@ -1859,7 +1879,7 @@ parseICCP(struct TPNGRPblc* pngr, struct TChunkHead head)
 		SETPROPERTY(PNGR_ICCP);
 	}
 	else {
-		if (pngr->error) {
+		if (pngr->public.error) {
 			return 0;
 		}
 		ADDWARNING(PNGR_BADICCP);
@@ -1875,20 +1895,20 @@ parseICCP(struct TPNGRPblc* pngr, struct TChunkHead head)
 
 
 static uintxx
-inflateidat(struct TPNGRPblc* pngr)
+inflateidat(struct TPNGRPrvt* pngr)
 {
 	uintxx r;
 	uintxx limit;
 
 	for (;;) {
-		if (PRVT->result == INFLT_SRCEXHSTD) {
-			limit = PRVT->remaining;
+		if (pngr->result == INFLT_SRCEXHSTD) {
+			limit = pngr->remaining;
 
 			if (limit == 0) {
 				struct TChunkHead head;
 
 				checkcrc32(pngr);
-				if (pngr->error) {
+				if (pngr->public.error) {
 					break;
 				}
 
@@ -1897,7 +1917,7 @@ inflateidat(struct TPNGRPblc* pngr)
 					head.fcc[1] != 'D' ||
 					head.fcc[2] != 'A' || head.fcc[3] != 'T') {
 					/* bad or incomplete stream */
-					if (pngr->error == 0) {
+					if (pngr->public.error == 0) {
 						SETERROR(PNGR_EBADDATA);
 					}
 					SETSTATE(PNGR_BADSTATE);
@@ -1905,7 +1925,7 @@ inflateidat(struct TPNGRPblc* pngr)
 				}
 
 				INITCRC32(pngr, CRC32_IDAT);
-				PRVT->remaining = head.length;
+				pngr->remaining = head.length;
 				continue;
 			}
 
@@ -1913,32 +1933,32 @@ inflateidat(struct TPNGRPblc* pngr)
 				limit = SRCBUFFERSZ;
 			}
 
-			if (readinput(pngr, PRVT->source, limit) == 0) {
+			if (readinput(pngr, pngr->source, limit) == 0) {
 				return 0;
 			}
-			PRVT->remaining -= (PRVT->inputsize = limit);
+			pngr->remaining -= (pngr->inputsize = limit);
 
-			inflator_setsrc(PRVT->inflator, PRVT->source, limit);
+			inflator_setsrc(pngr->inflator, pngr->source, limit);
 		}
 		else {
-			if (PRVT->result ^ INFLT_TGTEXHSTD) {
+			if (pngr->result ^ INFLT_TGTEXHSTD) {
 				SETERROR(PNGR_EDEFLATE);
 				SETSTATE(PNGR_BADSTATE);
 				return 0;
 			}
 		}
 
-		inflator_settgt(PRVT->inflator, PRVT->target, TGTBUFFERSZ);
+		inflator_settgt(pngr->inflator, pngr->target, TGTBUFFERSZ);
 
-		PRVT->result = inflator_inflate(PRVT->inflator, 0);
-		if (PRVT->result == INFLT_ERROR) {
+		pngr->result = inflator_inflate(pngr->inflator, 0);
+		if (pngr->result == INFLT_ERROR) {
 			SETERROR(PNGR_EDEFLATE);
 			SETSTATE(PNGR_BADSTATE);
 			return 0;
 		}
 
-		r = inflator_tgtend(PRVT->inflator);
-		if (r || PRVT->result == INFLT_OK) {
+		r = inflator_tgtend(pngr->inflator);
+		if (r || pngr->result == INFLT_OK) {
 			return r;
 		}
 	}
@@ -1951,7 +1971,7 @@ inflateidat(struct TPNGRPblc* pngr)
 
 
 CTB_INLINE uintxx
-consumetail(struct TPNGRPblc* pngr, intxx remaining)
+consumetail(struct TPNGRPrvt* pngr, intxx remaining)
 {
 	struct TChunkHead head;
 
@@ -1961,7 +1981,7 @@ consumetail(struct TPNGRPblc* pngr, intxx remaining)
 			head.fcc[1] != 'D' ||
 			head.fcc[2] != 'A' || head.fcc[3] != 'T') {
 			/* bad or incomplete stream */
-			if (pngr->error == 0) {
+			if (pngr->public.error == 0) {
 				SETERROR(PNGR_EBADDATA);
 			}
 			return 0;
@@ -1976,7 +1996,7 @@ consumetail(struct TPNGRPblc* pngr, intxx remaining)
 
 		consumechunk(pngr, head.length);
 		checkcrc32(pngr);
-		if (pngr->error) {
+		if (pngr->public.error) {
 			return 0;
 		}
 	}
@@ -1984,30 +2004,29 @@ consumetail(struct TPNGRPblc* pngr, intxx remaining)
 }
 
 CTB_INLINE bool
-checktail(struct TPNGRPblc* pngr)
+checktail(struct TPNGRPrvt* pngr)
 {
-	if (PRVT->result == INFLT_SRCEXHSTD ||
-		PRVT->result == INFLT_TGTEXHSTD) {
+	if (pngr->result == INFLT_SRCEXHSTD || pngr->result == INFLT_TGTEXHSTD) {
 		inflateidat(pngr);
 	}
 
-	if (PRVT->result == INFLT_OK) {
+	if (pngr->result == INFLT_OK) {
 		uintxx remaining;
 
-		if (PRVT->remaining) {
+		if (pngr->remaining) {
 			SETERROR(PNGR_EBADDATA);
 			return 0;
 		}
 		checkcrc32(pngr);
-		if (pngr->error) {
+		if (pngr->public.error) {
 			return 0;
 		}
 
 		/* le adler32 zlib stream tail */
-		remaining = PRVT->inputsize - inflator_srcend(PRVT->inflator);
+		remaining = pngr->inputsize - inflator_srcend(pngr->inflator);
 		remaining = 4 - remaining;
 		if (remaining > 0) {
-			if (consumetail(pngr, remaining) == 0) {
+			if (consumetail(pngr, (intxx) remaining) == 0) {
 				return 0;
 			}
 		}
@@ -2017,23 +2036,23 @@ checktail(struct TPNGRPblc* pngr)
 }
 
 CTB_INLINE bool
-fetchrow(struct TPNGRPblc* pngr, uint8* target, uintxx size)
+fetchrow(struct TPNGRPrvt* pngr, uint8* target, uintxx size)
 {
 	uintxx total;
 	uintxx avaible;
 	uintxx j;
 
 	for (total = size; total; ) {
-		avaible = (uintxx) (PRVT->tend - PRVT->tbgn);
+		avaible = (uintxx) (pngr->tend - pngr->tbgn);
 		if (CTB_EXPECT1(avaible)) {
 			j = avaible;
 			if (j > total) {
 				j = total;
 			}
 
-			ctb_memcpy(target, PRVT->tbgn, j);
+			ctb_memcpy(target, pngr->tbgn, j);
 			target     += j;
-			PRVT->tbgn += j;
+			pngr->tbgn += j;
 
 			total -= j;
 		}
@@ -2043,8 +2062,8 @@ fetchrow(struct TPNGRPblc* pngr, uint8* target, uintxx size)
 			if (CTB_EXPECT0((r = inflateidat(pngr)) == 0)) {
 				return 0;
 			}
-			PRVT->tbgn = PRVT->target;
-			PRVT->tend = PRVT->tbgn + r;
+			pngr->tbgn = PRVT->target;
+			pngr->tend = PRVT->tbgn + r;
 			continue;
 		}
 	}
@@ -2167,7 +2186,7 @@ unpack(uint8* row, uintxx size, uintxx depth)
 
 	switch (depth) {
 		case 1:
-			i = ((size * 1) + 7) >> 3;
+			i = (((intxx) size * 1) + 7) >> 3;
 			j = i * 8;
 			for (i--; i >= 0; i--) {
 				uint8 v;
@@ -2185,7 +2204,7 @@ unpack(uint8* row, uintxx size, uintxx depth)
 			break;
 
 		case 2:
-			i = ((size * 2) + 7) >> 3;
+			i = (((intxx) size * 2) + 7) >> 3;
 			j = i * 4;
 			for (i--; i >= 0; i--) {
 				uint8 v;
@@ -2199,7 +2218,7 @@ unpack(uint8* row, uintxx size, uintxx depth)
 			break;
 
 		case 4:
-			i = ((size * 4) + 7) >> 3;
+			i = (((intxx) size * 4) + 7) >> 3;
 			j = i * 2;
 			for (--i; i >= 0; i--) {
 				uint8 v;
@@ -2220,19 +2239,19 @@ unpack(uint8* row, uintxx size, uintxx depth)
 #endif
 
 CTB_INLINE uint8*
-decoderow(struct TPNGRPblc* pngr, uintxx sizex, uintxx rowsize)
+decoderow(struct TPNGRPrvt* pngr, uintxx sizex, uintxx rowsize)
 {
 	uint8* curr;
 	uint8* prev;
 	uintxx filter;
 
-	PRVT->currrow = PRVT->rbuffers[0];
-	if (PRVT->prevrow == PRVT->rbuffers[0]) {
-		PRVT->currrow = PRVT->rbuffers[1];
+	pngr->currrow = pngr->rbuffers[0];
+	if (pngr->prevrow == pngr->rbuffers[0]) {
+		pngr->currrow = pngr->rbuffers[1];
 	}
 
-	curr = PRVT->currrow;
-	prev = PRVT->prevrow;
+	curr = pngr->currrow;
+	prev = pngr->prevrow;
 	if (fetchrow(pngr, curr, rowsize) == 0) {
 		SETSTATE(PNGR_BADSTATE);
 		return NULL;
@@ -2247,16 +2266,16 @@ decoderow(struct TPNGRPblc* pngr, uintxx sizex, uintxx rowsize)
 			SETSTATE(PNGR_BADSTATE);
 			return NULL;
 		}
-		UNFILTER(curr, prev, rowsize - 1, (filter << 16) | PRVT->rawpelsize);
+		UNFILTER(curr, prev, rowsize - 1, (filter << 16) | pngr->rawpelsize);
 	}
 
-	if (CTB_EXPECT0(pngr->depth < 8)) {
-		unpack(curr, sizex, pngr->depth);
+	if (CTB_EXPECT0(pngr->public.depth < 8)) {
+		unpack(curr, sizex, pngr->public.depth);
 	}
 
 	/* swap rows */
-	PRVT->prevrow = curr - 1;
-	PRVT->currrow = prev - 1;
+	pngr->prevrow = curr - 1;
+	pngr->currrow = prev - 1;
 	return curr;
 }
 
@@ -2270,20 +2289,20 @@ decoderow(struct TPNGRPblc* pngr, uintxx sizex, uintxx rowsize)
 #endif
 
 static void
-setrow(struct TPNGRPblc* pngr, uint8* pixels, uint8* row)
+setrow(struct TPNGRPrvt* pngr, uint8* pixels, uint8* row)
 {
 	uintxx i;
 
-	if (PRVT->hasalpha) {
-		if (pngr->colortype == 0 || pngr->colortype == 2) {
-			if (pngr->depth ^ 16) {
+	if (pngr->hasalpha) {
+		if (pngr->public.colortype == 0 || pngr->public.colortype == 2) {
+			if (pngr->public.depth ^ 16) {
 				uint8 sample[4];
 
-				sample[0] = (uint8) pngr->alpha[0];
-				sample[1] = (uint8) pngr->alpha[1];
-				sample[2] = (uint8) pngr->alpha[2];
-				if (pngr->colortype == 0) {
-					for (i = 0; i < pngr->sizex; i++) {
+				sample[0] = (uint8) pngr->public.alpha[0];
+				sample[1] = (uint8) pngr->public.alpha[1];
+				sample[2] = (uint8) pngr->public.alpha[2];
+				if (pngr->public.colortype == 0) {
+					for (i = 0; i < pngr->public.sizex; i++) {
 						pixels[0] = row[0];
 						pixels[1] = 0xff;
 						if (row[0] == sample[0]) {
@@ -2294,7 +2313,7 @@ setrow(struct TPNGRPblc* pngr, uint8* pixels, uint8* row)
 					}
 				}
 				else {
-					for (i = 0; i < pngr->sizex; i++) {
+					for (i = 0; i < pngr->public.sizex; i++) {
 						pixels[0] = row[0];
 						pixels[1] = row[1];
 						pixels[2] = row[2];
@@ -2312,9 +2331,9 @@ setrow(struct TPNGRPblc* pngr, uint8* pixels, uint8* row)
 			else {
 				uint8* sample;
 
-				sample = (uint8*) pngr->alpha;
-				if (pngr->colortype == 0) {
-					for (i = 0; i < pngr->sizex; i++) {
+				sample = (uint8*) pngr->public.alpha;
+				if (pngr->public.colortype == 0) {
+					for (i = 0; i < pngr->public.sizex; i++) {
 						pixels[0] = row[BYTE0_OFFSET + 0];
 						pixels[1] = row[BYTE1_OFFSET + 0];
 						pixels[2] = 0xff;
@@ -2329,7 +2348,7 @@ setrow(struct TPNGRPblc* pngr, uint8* pixels, uint8* row)
 					}
 				}
 				else {
-					for (i = 0; i < pngr->sizex; i++) {
+					for (i = 0; i < pngr->public.sizex; i++) {
 						pixels[0] = row[BYTE0_OFFSET + 0];
 						pixels[1] = row[BYTE1_OFFSET + 0];
 						pixels[2] = row[BYTE0_OFFSET + 2];
@@ -2357,10 +2376,10 @@ setrow(struct TPNGRPblc* pngr, uint8* pixels, uint8* row)
 	}
 
 #if CTB_IS_LITTLEENDIAN
-	if (pngr->depth == 16) {
+	if (pngr->public.depth == 16) {
 		uintxx total;
 
-		total = pngr->sizex * (PRVT->pelsize >> 1);
+		total = pngr->public.sizex * (pngr->pelsize >> 1);
 		for (i = 0; i < total; i++) {
 			*pixels++ = row[1];
 			*pixels++ = row[0];
@@ -2370,106 +2389,108 @@ setrow(struct TPNGRPblc* pngr, uint8* pixels, uint8* row)
 	}
 #endif
 
-	ctb_memcpy(pixels, row, PRVT->rowsize);
+	ctb_memcpy(pixels, row, pngr->rowsize);
 }
 
 uintxx
-pngr_decodeimg(TPNGReader* pngr)
+pngr_decodeimg(const TPNGReader* state)
 {
 	uintxx i;
 	uintxx j;
 	uint8* pixels;
 	uint8* idxs;
-	CTB_ASSERT(pngr);
+	struct TPNGRPrvt* pngr;
+	CTB_ASSERT(state);
 
-	if (pngr->state ^ 3) {
-		if (pngr->state == 2) {
-			PBLC->state++;
+	pngr = CTB_CONSTCAST(state);
+	if (pngr->public.state ^ 3) {
+		if (pngr->public.state == 2) {
+			SETSTATE(3);
 		}
 		else {
 			SETSTATE(PNGR_BADSTATE);
-			if (pngr->error == 0) {
+			if (pngr->public.error == 0) {
 				SETERROR(PNGR_EINCORRECTUSE);
 			}
 			return 0;
 		}
 	}
 
-	if (pngr->interlace) {
-		PRVT->interpolate = 0;
-		switch (PRVT->pass) {
-			case 0: pngr_decodepass(pngr);  /* fallthrough */
-			case 1: pngr_decodepass(pngr);  /* fallthrough */
-			case 2: pngr_decodepass(pngr);  /* fallthrough */
-			case 3: pngr_decodepass(pngr);  /* fallthrough */
-			case 4: pngr_decodepass(pngr);  /* fallthrough */
-			case 5: pngr_decodepass(pngr);  /* fallthrough */
-			case 6: pngr_decodepass(pngr);  /* fallthrough */
+	if (pngr->public.interlace) {
+		pngr->interpolate = 0;
+		switch (pngr->pass) {
+			case 0: pngr_decodepass(state);  /* fallthrough */
+			case 1: pngr_decodepass(state);  /* fallthrough */
+			case 2: pngr_decodepass(state);  /* fallthrough */
+			case 3: pngr_decodepass(state);  /* fallthrough */
+			case 4: pngr_decodepass(state);  /* fallthrough */
+			case 5: pngr_decodepass(state);  /* fallthrough */
+			case 6: pngr_decodepass(state);  /* fallthrough */
 			default:
 				break;
 		}
-		if (pngr->state == 4 || pngr->state == 5) {
+		if (pngr->public.state == 4 || pngr->public.state == 5) {
 			return 1;
 		}
 		return 0;
 	}
 
-	pixels = PRVT->pixels;
-	idxs   = PRVT->idxs;
-	for (i = 0; i < pngr->sizey; i++) {
+	pixels = pngr->pixels;
+	idxs   = pngr->idxs;
+	for (i = 0; i < pngr->public.sizey; i++) {
 		uint8* row;
 
-		row = decoderow(PBLC, pngr->sizex, PRVT->rawrowsize);
+		row = decoderow(pngr, pngr->public.sizex, pngr->rawrowsize);
 		if (CTB_EXPECT0(row == NULL)) {
 			SETSTATE(PNGR_BADSTATE);
 			return 0;
 		}
 
 		if (CTB_EXPECT1(pixels != NULL)) {
-			if (CTB_EXPECT0(pngr->colortype == 3)) {
+			if (CTB_EXPECT0(pngr->public.colortype == 3)) {
 				uintxx entry;
 
 				/* we don't check the range here */
-				if (PRVT->hasalpha) {
-					for (j = 0; j < pngr->sizex; j++) {
+				if (pngr->hasalpha) {
+					for (j = 0; j < pngr->public.sizex; j++) {
 						entry = row[j] * 4;
 
-						*pixels++ = pngr->palette[entry + 0];
-						*pixels++ = pngr->palette[entry + 1];
-						*pixels++ = pngr->palette[entry + 2];
-						*pixels++ = pngr->palette[entry + 3];
+						*pixels++ = pngr->public.palette[entry + 0];
+						*pixels++ = pngr->public.palette[entry + 1];
+						*pixels++ = pngr->public.palette[entry + 2];
+						*pixels++ = pngr->public.palette[entry + 3];
 					}
 				}
 				else {
-					for (j = 0; j < pngr->sizex; j++) {
+					for (j = 0; j < pngr->public.sizex; j++) {
 						entry = row[j] * 4;
-						*pixels++ = pngr->palette[entry + 0];
-						*pixels++ = pngr->palette[entry + 1];
-						*pixels++ = pngr->palette[entry + 2];
+						*pixels++ = pngr->public.palette[entry + 0];
+						*pixels++ = pngr->public.palette[entry + 1];
+						*pixels++ = pngr->public.palette[entry + 2];
 					}
 				}
 			}
 			else {
-				setrow(PBLC, pixels, row);
-				pixels += PRVT->rowsize;
+				setrow(pngr, pixels, row);
+				pixels += pngr->rowsize;
 			}
 		}
 
 		if (CTB_EXPECT1(idxs != NULL)) {
-			for (j = 0; j < pngr->sizex; j++) {
+			for (j = 0; j < pngr->public.sizex; j++) {
 				idxs[j] = row[j];
 			}
-			idxs += pngr->sizex;
+			idxs += pngr->public.sizex;
 		}
 	}
 
-	if (checktail(PBLC) == 0)  {
+	if (checktail(pngr) == 0)  {
 		SETSTATE(5);
 		return 1;
 	}
 
 	SETSTATE(4);
-	if (parsechunks(PBLC) == 0 || pngr->warnings) {
+	if (parsechunks(pngr) == 0 || pngr->public.warnings) {
 		SETSTATE(5);
 	}
 	return 1;
@@ -2477,37 +2498,37 @@ pngr_decodeimg(TPNGReader* pngr)
 
 
 CTB_INLINE uint8*
-getsample(struct TPNGRPblc* pngr, uint8* source, uint8* pixel)
+getsample(struct TPNGRPrvt* pngr, uint8* source, uint8* pixel)
 {
-	if (pngr->colortype == 3) {
+	if (pngr->public.colortype == 3) {
 		uintxx j;
 
 		/* we don't check the range here */
-		if (PRVT->hasalpha) {
+		if (pngr->hasalpha) {
 			j = source[0] * 4;
-			pixel[0] = pngr->palette[j + 0];
-			pixel[1] = pngr->palette[j + 1];
-			pixel[2] = pngr->palette[j + 2];
-			pixel[3] = pngr->palette[j + 3];
+			pixel[0] = pngr->public.palette[j + 0];
+			pixel[1] = pngr->public.palette[j + 1];
+			pixel[2] = pngr->public.palette[j + 2];
+			pixel[3] = pngr->public.palette[j + 3];
 		}
 		else {
 			j = source[0] * 4;
-			pixel[0] = pngr->palette[j + 0];
-			pixel[1] = pngr->palette[j + 1];
-			pixel[2] = pngr->palette[j + 2];
+			pixel[0] = pngr->public.palette[j + 0];
+			pixel[1] = pngr->public.palette[j + 1];
+			pixel[2] = pngr->public.palette[j + 2];
 		}
 		return pixel;
 	}
 
-	if (PRVT->hasalpha) {
-		if (pngr->colortype == 0 || pngr->colortype == 2) {
-			if (pngr->depth ^ 16) {
+	if (pngr->hasalpha) {
+		if (pngr->public.colortype == 0 || pngr->public.colortype == 2) {
+			if (pngr->public.depth ^ 16) {
 				uint8 sample[4];
 
-				sample[0] = (uint8) pngr->alpha[0];
-				sample[1] = (uint8) pngr->alpha[1];
-				sample[2] = (uint8) pngr->alpha[2];
-				if (pngr->colortype == 0) {
+				sample[0] = (uint8) pngr->public.alpha[0];
+				sample[1] = (uint8) pngr->public.alpha[1];
+				sample[2] = (uint8) pngr->public.alpha[2];
+				if (pngr->public.colortype == 0) {
 					pixel[0] = source[0];
 					pixel[1] = 0xff;
 					if (source[0] == sample[0]) {
@@ -2529,8 +2550,8 @@ getsample(struct TPNGRPblc* pngr, uint8* source, uint8* pixel)
 			else {
 				uint8* sample;
 
-				sample = (uint8*) pngr->alpha;
-				if (pngr->colortype == 0) {
+				sample = (uint8*) pngr->public.alpha;
+				if (pngr->public.colortype == 0) {
 					pixel[0] = source[BYTE0_OFFSET + 0];
 					pixel[1] = source[BYTE1_OFFSET + 0];
 					pixel[2] = 0xff;
@@ -2566,11 +2587,11 @@ getsample(struct TPNGRPblc* pngr, uint8* source, uint8* pixel)
 	}
 
 #if CTB_IS_LITTLEENDIAN
-	if (pngr->depth == 16) {
+	if (pngr->public.depth == 16) {
 		uint16* p;
 
 		p = (void*) pixel;
-		switch (PRVT->pelsize) {
+		switch (pngr->pelsize) {
 			case 8: p[3] = (source[7] << 0x08) | source[6];  /* fallthrough */
 			case 6: p[2] = (source[5] << 0x08) | source[4];  /* fallthrough */
 			case 4: p[1] = (source[3] << 0x08) | source[2];  /* fallthrough */
@@ -2586,18 +2607,18 @@ getsample(struct TPNGRPblc* pngr, uint8* source, uint8* pixel)
 #undef BYTE1_OFFSET
 
 
-CTB_FORCEINLINE void
-fill(struct TPNGRPblc* pngr, uint8* offset, uint8* s, uintxx x2, uintxx y2)
+CTB_INLINE void
+fill(struct TPNGRPrvt* pngr, uint8* offset, uint8* s, uintxx x2, uintxx y2)
 {
 	uintxx x;
 	uintxx y;
 	uint8* position;
 
 	for (y = 0; y < y2; y++) {
-		position = offset + (y * PRVT->rowsize);
+		position = offset + (y * pngr->rowsize);
 
 		for (x = 0; x < x2; x++) {
-			switch (PRVT->pelsize) {
+			switch (pngr->pelsize) {
 				case 8: position[7] = s[7];
 				/* 7 */ position[6] = s[6];  /* fallthrough */
 				case 6: position[5] = s[5];
@@ -2607,13 +2628,13 @@ fill(struct TPNGRPblc* pngr, uint8* offset, uint8* s, uintxx x2, uintxx y2)
 				case 2: position[1] = s[1];  /* fallthrough */
 				case 1: position[0] = s[0];
 			}
-			position += PRVT->pelsize;
+			position += pngr->pelsize;
 		}
 	}
 }
 
 uintxx
-pngr_decodepass(TPNGReader* pngr)
+pngr_decodepass(const TPNGReader* state)
 {
 	uintxx x;
 	uintxx y;
@@ -2626,88 +2647,90 @@ pngr_decodepass(TPNGReader* pngr)
 	uint8* offsetx;
 	uintxx stepx;
 	uintxx stepy;
-	CTB_ASSERT(pngr);
+	struct TPNGRPrvt* pngr;
+	CTB_ASSERT(state);
 
-	if (pngr->state ^ 3) {
-		if (pngr->state == 2) {
-			PBLC->state++;
+	pngr = CTB_CONSTCAST(state);
+	if (pngr->public.state ^ 3) {
+		if (pngr->public.state == 2) {
+			pngr->public.state++;
 		}
 		else {
 			SETSTATE(PNGR_BADSTATE);
-			if (pngr->error == 0) {
+			if (pngr->public.error == 0) {
 				SETERROR(PNGR_EINCORRECTUSE);
 			}
 			return 0;
 		}
 	}
 
-	i = PRVT->pass;
-	rowsize = PRVT->passrowsize[i];
-	memsize = PRVT->passmemsize[i];
+	i = pngr->pass;
+	rowsize = pngr->passrowsize[i];
+	memsize = pngr->passmemsize[i];
 	if (rowsize == 0) {
 		/* empty pass */
 		goto L_DONE;
 	}
 
 	/* init the row buffers */
-	PRVT->prevrow = PRVT->rbuffers[0];
-	PRVT->currrow = PRVT->rbuffers[1];
-	ctb_memset(PRVT->prevrow, 0, memsize);
+	pngr->prevrow = pngr->rbuffers[0];
+	pngr->currrow = pngr->rbuffers[1];
+	ctb_memset(pngr->prevrow, 0, memsize);
 
 	/* */
-	stepx = STEP_X(i) * PRVT->pelsize;
-	stepy = STEP_Y(i) * PRVT->rowsize;
+	stepx = STEP_X(i) * pngr->pelsize;
+	stepy = STEP_Y(i) * pngr->rowsize;
 
 	/* target buffer */
-	peloffsety  = PRVT->pixels;
-	peloffsety += ORIGIN_X(i) * PRVT->pelsize;
-	peloffsety += ORIGIN_Y(i) * PRVT->rowsize;
+	peloffsety  = pngr->pixels;
+	peloffsety += ORIGIN_X(i) * pngr->pelsize;
+	peloffsety += ORIGIN_Y(i) * pngr->rowsize;
 
-	idxoffsety  = PRVT->idxs;
+	idxoffsety  = pngr->idxs;
 	idxoffsety += ORIGIN_X(i);
-	idxoffsety += ORIGIN_Y(i) * pngr->sizex;
+	idxoffsety += ORIGIN_Y(i) * pngr->public.sizex;
 
-	for (y = ORIGIN_Y(i); y < pngr->sizey; y += STEP_Y(i)) {
+	for (y = ORIGIN_Y(i); y < pngr->public.sizey; y += STEP_Y(i)) {
 		uint8* rowpointer;
 		uint8* row;
 		uint8* sample;
 
-		rowpointer = decoderow(PBLC, rowsize, memsize);
+		rowpointer = decoderow(pngr, rowsize, memsize);
 		if (rowpointer == NULL) {
 			SETSTATE(PNGR_BADSTATE);
 			return 0;
 		}
 
 		row = rowpointer;
-		if (CTB_EXPECT1(PRVT->pixels != NULL)) {
+		if (CTB_EXPECT1(pngr->pixels != NULL)) {
 			offsetx = peloffsety;
-			if (PRVT->interpolate) {
+			if (pngr->interpolate) {
 				uintxx sx;
 				uintxx sy;
 
-				for (x = ORIGIN_X(i); x < pngr->sizex; x += STEP_X(i)) {
+				for (x = ORIGIN_X(i); x < pngr->public.sizex; x += STEP_X(i)) {
 					const uintxx passsizex[] = {8, 4, 4, 2, 2, 1, 1};
 					const uintxx passsizey[] = {8, 8, 4, 4, 2, 2, 1};
 					uint8 pixel[8];
 
-					sx = pngr->sizex - x;
-					sy = pngr->sizey - y;
+					sx = pngr->public.sizex - x;
+					sy = pngr->public.sizey - y;
 					if (CTB_EXPECT0(sx > passsizex[i])) sx = passsizex[i];
 					if (CTB_EXPECT0(sy > passsizey[i])) sy = passsizey[i];
 
-					sample = getsample(PBLC, row, pixel);
-					fill(PBLC, offsetx, sample, sx, sy);
+					sample = getsample(pngr, row, pixel);
+					fill(pngr, offsetx, sample, sx, sy);
 
-					row += PRVT->rawpelsize;
+					row += pngr->rawpelsize;
 					offsetx += stepx;
 				}
 			}
 			else {
-				for (x = ORIGIN_X(i); x < pngr->sizex; x += STEP_X(i)) {
+				for (x = ORIGIN_X(i); x < pngr->public.sizex; x += STEP_X(i)) {
 					uint8 pixel[8];
 
-					sample = getsample(PBLC, row, pixel);
-					switch (PRVT->pelsize) {
+					sample = getsample(pngr, row, pixel);
+					switch (pngr->pelsize) {
 						case 8: offsetx[7] = sample[7];
 						/* 7 */ offsetx[6] = sample[6];  /* fallthrough */
 						case 6: offsetx[5] = sample[5];
@@ -2717,7 +2740,7 @@ pngr_decodepass(TPNGReader* pngr)
 						case 2: offsetx[1] = sample[1];  /* fallthrough */
 						case 1: offsetx[0] = sample[0];
 					}
-					row += PRVT->rawpelsize;
+					row += pngr->rawpelsize;
 					offsetx += stepx;
 				}
 			}
@@ -2725,27 +2748,27 @@ pngr_decodepass(TPNGReader* pngr)
 		}
 
 		row = rowpointer;
-		if (CTB_EXPECT1(PRVT->idxs != NULL)) {
+		if (CTB_EXPECT1(pngr->idxs != NULL)) {
 			offsetx = idxoffsety;
 
-			for (x = ORIGIN_X(i); x < pngr->sizex; x += STEP_X(i)) {
+			for (x = ORIGIN_X(i); x < pngr->public.sizex; x += STEP_X(i)) {
 				offsetx[0] = *row++;
 				offsetx += STEP_X(i);
 			}
-			idxoffsety += STEP_Y(i) * pngr->sizex;
+			idxoffsety += STEP_Y(i) * pngr->public.sizex;
 		}
 	}
 
 L_DONE:
-	r = ++PRVT->pass;
+	r = ++pngr->pass;
 	if (r == ADAM7PASSES) {
-		if (checktail(PBLC) == 0)  {
+		if (checktail(pngr) == 0)  {
 			SETSTATE(5);
 			return 0;
 		}
 
 		SETSTATE(4);
-		if (parsechunks(PBLC) == 0 || pngr->warnings) {
+		if (parsechunks(pngr) == 0 || pngr->public.warnings) {
 			SETSTATE(5);
 		}
 		return 0;

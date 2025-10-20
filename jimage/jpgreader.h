@@ -78,7 +78,7 @@ typedef enum {
 
 
 /* Public struct */
-struct TJPGRPblc {
+struct TJPGReader {
 	uintxx state;
 	uintxx flags;
 	uintxx error;
@@ -98,7 +98,7 @@ struct TJPGRPblc {
 	uintxx isprogressive;
 
 	/* jpeg version and density */
-	uintxx mayorversion;
+	uintxx majorversion;
 	uintxx minorversion;
 	uintxx xdensity;
 	uintxx ydensity;
@@ -113,49 +113,49 @@ struct TJPGRPblc {
 	uintxx iccpsize;
 };
 
-typedef const struct TJPGRPblc TJPGReader;
+typedef struct TJPGReader TJPGReader;
 
 
 /*
  * */
-TJPGReader* jpgr_create(eJPGRFlags flags, TAllocator* allctr);
+const TJPGReader* jpgr_create(eJPGRFlags flags, const TAllocator*);
 
 /*
  * Destroys (and deallocates) the given JPG reader. */
-void jpgr_destroy(TJPGReader*);
+void jpgr_destroy(const TJPGReader*);
 
 /*
  * Resets the reader. */
-void jpgr_reset(TJPGReader*);
+void jpgr_reset(const TJPGReader*);
 
 /*
  * Sets the input function used to read the image data. */
-void jpgr_setinputfn(TJPGReader*, TIMGInputFn fn, void* user);
+void jpgr_setinputfn(const TJPGReader*, TIMGInputFn fn, void* user);
 
 /*
  * Init the decoder and determines the required internal memory nedeed
  * to decode the image. */
-bool jpgr_initdecoder(TJPGReader*, TImageInfo* info);
+bool jpgr_initdecoder(const TJPGReader*, TImageInfo* info);
 
 /*
  * Sets the target memory buffer for the decoded image (the complete image). */
-void jpgr_setbuffers(TJPGReader*, uint8* pixels);
+void jpgr_setbuffers(const TJPGReader*, uint8* pixels);
 
 /*
  * Decodes the image to the image buffer (if set). */
-uintxx jpgr_decodeimg(TJPGReader*);
+uintxx jpgr_decodeimg(const TJPGReader*);
 
 /*
  * */
-uintxx jpgr_decodepass(TJPGReader*, bool update);
+uintxx jpgr_decodepass(const TJPGReader*, bool update);
 
 /*
  * */
-void jpgr_updateimg(TJPGReader*);
+void jpgr_updateimg(const TJPGReader*);
 
 /*
  * */
-CTB_INLINE bool jpgr_isprogressive(TJPGReader*);
+CTB_INLINE bool jpgr_isprogressive(const TJPGReader*);
 
 
 /* Non fatal errors */
@@ -168,14 +168,14 @@ typedef enum {
 
 /*
  * */
-CTB_INLINE eJPGRState jpgr_getstate(TJPGReader*, uintxx* error, uintxx* wrnns);
+CTB_INLINE eJPGRState jpgr_getstate(const TJPGReader*, uintxx* error, uintxx* wrnns);
 
 
 /*
  * Inlines */
 
 CTB_INLINE bool
-jpgr_isprogressive(TJPGReader* jpgr)
+jpgr_isprogressive(const TJPGReader* jpgr)
 {
 	CTB_ASSERT(jpgr);
 
@@ -183,7 +183,7 @@ jpgr_isprogressive(TJPGReader* jpgr)
 }
 
 CTB_INLINE eJPGRState
-jpgr_getstate(TJPGReader* jpgr, uintxx* error, uintxx* wrnns)
+jpgr_getstate(const TJPGReader* jpgr, uintxx* error, uintxx* wrnns)
 {
 	CTB_ASSERT(jpgr);
 

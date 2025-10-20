@@ -75,7 +75,7 @@ typedef enum {
 
 
 /* Public struct */
-struct TPNGRPblc {
+struct TPNGReader {
 	/* state */
 	uintxx state;
 	uintxx flags;
@@ -137,53 +137,53 @@ struct TPNGRPblc {
 	uint8  physunit;
 };
 
-typedef const struct TPNGRPblc TPNGReader;
+typedef struct TPNGReader TPNGReader;
 
 
 /*
  * */
-TPNGReader* pngr_create(ePNGRFlags flags, TAllocator* allctr);
+const TPNGReader* pngr_create(ePNGRFlags flags, const TAllocator*);
 
 /*
  * Destroys (and deallocates) the given PNG reader. */
-void pngr_destroy(TPNGReader*);
+void pngr_destroy(const TPNGReader*);
 
 /*
  * Resets the reader. */
-void pngr_reset(TPNGReader*);
+void pngr_reset(const TPNGReader*);
 
 /*
  * Sets the input function. */
-void pngr_setinputfn(TPNGReader*, TIMGInputFn fn, void* user);
+void pngr_setinputfn(const TPNGReader*, TIMGInputFn fn, void* user);
 
 /*
  * Init the decoder and determines the required internal memory nedeed
  * to decode the image. */
-uintxx pngr_initdecoder(TPNGReader*, TImageInfo* info);
+uintxx pngr_initdecoder(const TPNGReader*, TImageInfo* info);
 
 /*
  * Sets the target memory buffer for the decoded image and the index buffer
  * for indexed images, both (the pixel buffer and the index buffer) can be
  * NULL. */
-void pngr_setbuffers(TPNGReader*, uint8* pixels, uint8* idxs);
+void pngr_setbuffers(const TPNGReader*, uint8* pixels, uint8* idxs);
 
 /*
  * Decodes the next pass of a progressive image, returns the next pass or zero
  * is there are not more passes or in case of error. */
-uintxx pngr_decodepass(TPNGReader*);
+uintxx pngr_decodepass(const TPNGReader*);
 
 /*
  * Decodes the image to the image buffer (if set) or to the index buffer if
  * the index buffer is set and the image is indexed. */
-uintxx pngr_decodeimg(TPNGReader*);
+uintxx pngr_decodeimg(const TPNGReader*);
 
 /*
  * */
-CTB_INLINE bool pngr_isprogressive(TPNGReader*);
+CTB_INLINE bool pngr_isprogressive(const TPNGReader*);
 
 /*
  * */
-CTB_INLINE bool pngr_isindexed(TPNGReader*);
+CTB_INLINE bool pngr_isindexed(const TPNGReader*);
 
 
 /* chunks ids */
@@ -200,7 +200,7 @@ typedef enum {
 
 /*
  * */
-CTB_INLINE bool pngr_haspropertyof(TPNGReader*, eTPNGRChunk chunks);
+CTB_INLINE bool pngr_haspropertyof(const TPNGReader*, eTPNGRChunk chunks);
 
 
 /* Non fatal errors */
@@ -215,14 +215,14 @@ typedef enum {
 
 /*
  * */
-CTB_INLINE ePNGRState pngr_getstate(TPNGReader*, uintxx* error, uintxx* wrnns);
+CTB_INLINE ePNGRState pngr_getstate(const TPNGReader*, uintxx* error, uintxx* wrnns);
 
 
 /*
  * Inlines */
 
 CTB_INLINE bool
-pngr_isprogressive(TPNGReader* pngr)
+pngr_isprogressive(const TPNGReader* pngr)
 {
 	CTB_ASSERT(pngr);
 
@@ -230,7 +230,7 @@ pngr_isprogressive(TPNGReader* pngr)
 }
 
 CTB_INLINE bool
-pngr_isindexed(TPNGReader* pngr)
+pngr_isindexed(const TPNGReader* pngr)
 {
 	CTB_ASSERT(pngr);
 
@@ -238,7 +238,7 @@ pngr_isindexed(TPNGReader* pngr)
 }
 
 CTB_INLINE bool
-pngr_haspropertyof(TPNGReader* pngr, eTPNGRChunk chunks)
+pngr_haspropertyof(const TPNGReader* pngr, eTPNGRChunk chunks)
 {
 	CTB_ASSERT(pngr);
 
@@ -246,7 +246,7 @@ pngr_haspropertyof(TPNGReader* pngr, eTPNGRChunk chunks)
 }
 
 CTB_INLINE ePNGRState
-pngr_getstate(TPNGReader* pngr, uintxx* error, uintxx* wrnns)
+pngr_getstate(const TPNGReader* pngr, uintxx* error, uintxx* wrnns)
 {
 	CTB_ASSERT(pngr);
 
