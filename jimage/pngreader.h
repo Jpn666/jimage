@@ -28,10 +28,6 @@
 #include <ctoolbox/memory.h>
 
 
-/* Flag to toggle crc32 checksum check */
-/* #define PNGR_CFG_DOCRC */
-
-
 /* Error codes */
 typedef enum {
 	PNGR_OK               = 0,
