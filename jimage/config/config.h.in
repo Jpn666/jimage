@@ -1,0 +1,77 @@
+ /*
+ * Copyright (C) 2026, jpn
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef a2309c9e_92fd_402f_bf0f_3bb1dfbf8549
+#define a2309c9e_92fd_402f_bf0f_3bb1dfbf8549
+
+/*
+ * config.h
+ * Configuration flags.
+ */
+
+
+/* ***************************************************************************
+ * Function visibility attributes
+ *************************************************************************** */
+
+#if defined(JIMAGE_DLL)
+	#if defined(_WIN32)
+		#if defined(JIMAGE_BUILDDLL)
+			#define JIMAGE_API __declspec(dllexport)
+		#else
+			#define JIMAGE_API __declspec(dllimport)
+		#endif
+	#endif
+#endif
+
+#ifndef JIMAGE_API
+	#if defined(__GNUC__)
+		#define JIMAGE_API __attribute__((visibility("default")))
+	#else
+		#define JIMAGE_API
+	#endif
+#endif
+
+
+/* ***************************************************************************
+ * Version number
+ *************************************************************************** */
+
+#define JIMAGE_VERSION_MAJOR @version_major@
+#define JIMAGE_VERSION_MINOR @version_minor@
+/* revision */
+#define JIMAGE_VERSION_PATCH @version_patch@
+
+#define JIMAGE_VERSION_STRING "@version@"
+
+
+/*
+ * Version info */
+struct JIMAGEVersion {
+	int major;
+	int minor;
+	int patch;
+	const char* versionstring;
+	const char* builddate;
+};
+
+/*
+ * */
+JIMAGE_API
+struct JIMAGEVersion jimage_getversion(void);
+
+
+#endif

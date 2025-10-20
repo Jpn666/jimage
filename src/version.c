@@ -1,5 +1,5 @@
- /*
- * Copyright (C) 2023, jpn
+/*
+ * Copyright (C) 2025, jpn
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,24 +14,22 @@
  * limitations under the License.
  */
 
-#ifndef a2309c9e_92fd_402f_bf0f_3bb1dfbf8549
-#define a2309c9e_92fd_402f_bf0f_3bb1dfbf8549
-
-/*
- * jimageconfig.h
- * Configuration flags.
- */
+#include <jimage/config/config.h>
 
 
-/* ***************************************************************************
- * Version number
- *************************************************************************** */
+static const char versionstring[] = JIMAGE_VERSION_STRING;
 
-#define JIMAGE_VERSION_MAJOR @version_major@
-#define JIMAGE_VERSION_MINOR @version_minor@
-/* revision */
-#define JIMAGE_VERSION_RPATH @version_rpath@
 
-#define JIMAGE_VERSION_STRING "@version@"
+struct JIMAGEVersion
+jimage_getversion(void)
+{
+	struct JIMAGEVersion v;
 
-#endif
+	v.major = JIMAGE_VERSION_MAJOR;
+	v.minor = JIMAGE_VERSION_MINOR;
+	v.patch = JIMAGE_VERSION_PATCH;
+
+	v.versionstring = versionstring;
+	v.builddate     = (void*) 0;
+	return v;
+}
