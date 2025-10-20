@@ -122,11 +122,6 @@ struct TPNGRPrvt {
 };
 
 
-/* private and public cast, we only need PBLC to set values, only in the
- * exported functions */
-#define PRVT ((struct TPNGRPrvt*)  pngr)
-
-
 CTB_INLINE void*
 request_(struct TPNGRPrvt* p, uintxx amount)
 {
@@ -959,8 +954,8 @@ setvalues(struct TPNGRPrvt* pngr, struct TImageInfo* info)
 	}
 	r = r * ((pngr->public.depth + 7) >> 3);
 
-	PRVT->rawrowsize = PRVT->rowmemory = (pngr->public.sizex * r) + 1;
-	PRVT->rawpelsize = r;
+	pngr->rawrowsize = pngr->rowmemory = (pngr->public.sizex * r) + 1;
+	pngr->rawpelsize = r;
 	if (pngr->public.depth < 8) {
 		uint64 v;
 
@@ -1539,7 +1534,7 @@ parseBKGD(struct TPNGRPrvt* pngr, struct TChunkHead head)
 	/* palette index  */
 	if (size == 1) {
 		entry = s[0] * 3;
-		if (PRVT->hasalpha) {
+		if (pngr->hasalpha) {
 			entry += s[0];
 		}
 		pngr->public.background[0] = pngr->public.palette[entry + 0];
@@ -1806,7 +1801,7 @@ readiccprofile(struct TPNGRPrvt* pngr, uintxx size)
 			if (pngr->public.error) {
 				return 0;
 			}
-			pngr->public.iccprofile = PRVT->iccpmemory;
+			pngr->public.iccprofile = pngr->iccpmemory;
 			pngr->public.iccpsize   = total;
 
 			inflator_reset(pngr->inflator);
@@ -2062,8 +2057,8 @@ fetchrow(struct TPNGRPrvt* pngr, uint8* target, uintxx size)
 			if (CTB_EXPECT0((r = inflateidat(pngr)) == 0)) {
 				return 0;
 			}
-			pngr->tbgn = PRVT->target;
-			pngr->tend = PRVT->tbgn + r;
+			pngr->tbgn = pngr->target;
+			pngr->tend = pngr->tbgn + r;
 			continue;
 		}
 	}

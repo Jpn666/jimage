@@ -320,11 +320,6 @@ struct TJPGRPrvt {
 };
 
 
-/* private and public cast, we only need to use PBLC to set values, only in the
- * public functions */
-#define PBLC ((struct TJPGReader*) jpgr)
-#define PRVT ((struct TJPGRPrvt*)  jpgr)
-
 CTB_INLINE void*
 request_(struct TJPGRPrvt* p, uintxx amount)
 {
@@ -504,8 +499,8 @@ jpgr_destroy(const TJPGReader* state)
 }
 
 
-#define SETERROR(ERROR) (PBLC->error = (ERROR))
-#define SETSTATE(STATE) (PBLC->state = (STATE))
+#define SETERROR(ERROR) (jpgr->public.error = (ERROR))
+#define SETSTATE(STATE) (jpgr->public.state = (STATE))
 
 void
 jpgr_setinputfn(const TJPGReader* state, TIMGInputFn fn, void* user)
@@ -1630,7 +1625,7 @@ parseDHT(struct TJPGRPrvt* jpgr)
 
 		table = (void*) (jpgr->dctables + id);
 		if (type == 1) {
-			table = (void*) (PRVT->actables + id);
+			table = (void*) (jpgr->actables + id);
 		}
 
 		mode = type;
@@ -2018,7 +2013,7 @@ jpgr_setbuffers(const TJPGReader* state, uint8* pixels)
 		uintxx n;
 
 		n = (uintxx) jpgr->public.sizey * (uintxx) jpgr->public.sizex;
-		ctb_memset(pixels, 0, n * (uintxx) PRVT->ncomponents);
+		ctb_memset(pixels, 0, n * (uintxx) jpgr->ncomponents);
 	}
 	SETSTATE(2);
 }
@@ -2227,7 +2222,7 @@ buildtable(struct TJPGHmTable* table, uintxx mode, uint8* lns, uint8* symbols)
 /*
  * BIT reading functions */
 
-#define BUFFERBYTES (BPREFETCHSIZE * sizeof(PRVT->bb[0]))
+#define BUFFERBYTES (BPREFETCHSIZE * sizeof(jpgr->bb[0]))
 
 static void
 fecthbits(struct TJPGRPrvt* jpgr)
@@ -3081,7 +3076,7 @@ setpixels3ns(struct TJPGRPrvt* jpgr, uintxx y, uintxx x, uintxx torgb)
 		col = x << 3;
 		if (CTB_EXPECT1(col + 8 <= jpgr->public.sizex)) {
 			o = ((row * jpgr->public.sizex) + col) * 3;
-			setrow3(u1 + s, u2 + s, u3 + s, PRVT->pixels + o, torgb);
+			setrow3(u1 + s, u2 + s, u3 + s, jpgr->pixels + o, torgb);
 			row++;
 			continue;
 		}
@@ -3224,7 +3219,7 @@ setpixels3ss(struct TJPGRPrvt* jpgr, uintxx y, uintxx x, uintxx torgb)
 					row3 = u3 + c3->umap[s] + d3;
 				}
 
-				setrow3(row1, row2, row3, PRVT->pixels + o, torgb);
+				setrow3(row1, row2, row3, jpgr->pixels + o, torgb);
 				row++;
 				continue;
 			}
@@ -4219,5 +4214,3 @@ L_ERROR:
 
 #undef SETERROR
 #undef SETSTATE
-#undef PBLC
-#undef PRVT
