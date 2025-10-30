@@ -49,10 +49,20 @@ typedef enum {
 } ePNGRError;
 
 
+/* Non fatal errors */
+typedef enum {
+	PNGR_BADGAMA = 0x01,
+	PNGR_BADSBIT = 0x02,
+	PNGR_BADICCP = 0x04,
+	PNGR_BADPHYS = 0x08,
+	PNGR_BADSRGB = 0x10,
+	PNGR_BADCHRM = 0x20
+} ePNGRWarning;
+
+
 /* Flags */
 typedef enum {
-	PNGR_IGNOREICCP = 0x01,
-	PNGR_NOCRCCHECK = 0x02
+	PNGR_NOCRCCHECK = 0x01
 } ePNGRFlags;
 
 
@@ -65,9 +75,6 @@ typedef enum {
 	PNGR_DECODED  =  1,
 	PNGR_DECODEDWITHERROR = 2
 } ePNGRState;
-
-
-#define PNGR_BADSTATE 0xDEADBEEF
 
 
 /* Public struct */
@@ -120,12 +127,6 @@ struct TPNGReader {
 
 	/* sRGB */
 	uintxx srgbintent;
-
-	/* ICC profile */
-	uint8  iccpname[80];
-	uint8* iccprofile;
-	uintxx iccpsize;
-	uint32 iccpchecksum;   /* adler32 checksum */
 
 	/* physical dimensions */
 	uint32 physx;
@@ -192,7 +193,7 @@ CTB_INLINE
 bool pngr_isindexed(const TPNGReader*);
 
 
-/* chunks ids */
+/* Chunks */
 typedef enum {
 	PNGR_TRNS = 0x01,
 	PNGR_BKGD = 0x02,
@@ -209,21 +210,37 @@ typedef enum {
 CTB_INLINE
 bool pngr_haspropertyof(const TPNGReader*, eTPNGRChunk chunks);
 
-
-/* Non fatal errors */
-typedef enum {
-	PNGR_BADGAMA = 0x01,
-	PNGR_BADSBIT = 0x02,
-	PNGR_BADICCP = 0x04,
-	PNGR_BADPHYS = 0x08,
-	PNGR_BADSRGB = 0x10,
-	PNGR_BADCHRM = 0x20
-} ePNGRWarning;
-
 /*
  * */
 CTB_INLINE
-ePNGRState pngr_getstate(const TPNGReader*, uintxx* error, uintxx* wrnns);
+ePNGRState pngr_getstate(const TPNGReader*);
+
+
+
+/* ****************************************************************************
+ * ICCP handling
+ *************************************************************************** */
+
+/*
+ * Callback function to read the ICCP. */
+typedef void (*TPNGRICCPFn)(const TPNGReader*, uintxx size, void* user);
+
+
+/*
+ * Sets the ICCP callback function.
+ *
+ * This function will be called when an ICCP is found on the image. This
+ * function should be called before pngr_initdecoder(). */
+JIMAGE_API
+void pngr_setICCPfn(const TPNGReader*, TPNGRICCPFn fn, void* user);
+
+/*
+ * Reads the ICCP into the target buffer.
+ *
+ * This function can only be used inside the callback function and the
+ * target buffer must be large enough to hold the complete ICCP profile. */
+JIMAGE_API
+uintxx pngr_readICCP(const TPNGReader*, uint8* target);
 
 
 /*
@@ -254,14 +271,9 @@ pngr_haspropertyof(const TPNGReader* pngr, eTPNGRChunk chunks)
 }
 
 CTB_INLINE ePNGRState
-pngr_getstate(const TPNGReader* pngr, uintxx* error, uintxx* wrnns)
+pngr_getstate(const TPNGReader* pngr)
 {
 	CTB_ASSERT(pngr);
-
-	if (wrnns)
-		wrnns[0] = pngr->warnings;
-	if (error)
-		error[0] = pngr->error;
 
 	switch (pngr->state) {
 		case 0: return PNGR_NOTSET;

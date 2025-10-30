@@ -163,15 +163,17 @@ struct TJPGRPrvt {
 	uint8* mainmemory;
 	uintxx mainmsize;
 
-	/* allocated memory for the ICC profile (if any) */
-	uint8* iccpmemory;
-	uint8* iccpappend;
-	uintxx iccpmsize;
+	/* ICCP callback function */
+	TJPGRICCPFn iccpfn;
+
+	/* ICCP callback payload */
+	void* iccpuser;
 
 	/* used to read the profile */
-	uintxx iccpmode;
-	uint8  iccps1;
-	uint8  iccps2;
+	uintxx iccpsize;
+	uintxx iccpremaining;
+	uint32 iccpmode;
+	uint32 iccps2;
 
 	/* image properties */
 	uintxx ysampling;
@@ -363,7 +365,6 @@ jpgr_create(eJPGRFlags flags, const TAllocator* allctr)
 	}
 
 	jpgr->mainmemory = NULL;
-	jpgr->iccpmemory = NULL;
 	jpgr_reset((const struct TJPGReader*) jpgr);
 
 	jpgr->public.flags = flags;
@@ -400,8 +401,6 @@ jpgr_reset(const TJPGReader* state)
 	jpgr->public.ydensity = 0;
 	jpgr->public.unit = 0;
 
-	jpgr->public.iccprofile = NULL;
-	jpgr->public.iccpsize   = 0;
 
 	/* private fields */
 	jpgr->ncomponents   = 0;
@@ -414,15 +413,12 @@ jpgr_reset(const TJPGReader* state)
 	}
 	jpgr->mainmsize = 0;
 
-	if (jpgr->iccpmemory) {
-		dispose_(jpgr, jpgr->iccpmemory, jpgr->iccpmsize);
-		jpgr->iccpmemory = NULL;
-	}
-	jpgr->iccpmsize = 0;
+	jpgr->iccpfn   = NULL;
+	jpgr->iccpuser = NULL;
 
-	jpgr->iccpappend = NULL;
-	jpgr->iccpmode  = 0;
-	jpgr->iccps1 = 0;
+	jpgr->iccpmode = 0;
+	jpgr->iccpsize = 0;
+	jpgr->iccpremaining = 0;
 	jpgr->iccps2 = 0;
 
 	jpgr->ysampling = 0;
@@ -492,9 +488,6 @@ jpgr_destroy(const TJPGReader* state)
 	if (jpgr->mainmemory) {
 		dispose_(jpgr, jpgr->mainmemory, jpgr->mainmsize);
 	}
-	if (jpgr->iccpmemory) {
-		dispose_(jpgr, jpgr->iccpmemory, jpgr->iccpmsize);
-	}
 	dispose_(jpgr, jpgr, sizeof(struct TJPGRPrvt));
 }
 
@@ -503,15 +496,31 @@ jpgr_destroy(const TJPGReader* state)
 #define SETSTATE(STATE) (jpgr->public.state = (STATE))
 
 void
+jpgr_setICCPfn(const TJPGReader* state, TJPGRICCPFn fn, void* user)
+{
+	struct TJPGRPrvt* jpgr;
+	CTB_ASSERT(state);
+
+	jpgr = CTB_CONSTCAST(state);
+	if (jpgr->public.state != 0 || jpgr->iccpmode) {
+		SETERROR(JPGR_EINCORRECTUSE);
+		SETSTATE(0xDEADBEEF);
+		return;
+	}
+	jpgr->iccpfn = fn;
+	jpgr->iccpuser = user;
+}
+
+void
 jpgr_setinputfn(const TJPGReader* state, TIMGInputFn fn, void* user)
 {
 	struct TJPGRPrvt* jpgr;
 	CTB_ASSERT(state);
 
 	jpgr = CTB_CONSTCAST(state);
-	if (jpgr->public.state != 0) {
+	if (jpgr->public.state != 0 || jpgr->iccpmode) {
 		SETERROR(JPGR_EINCORRECTUSE);
-		SETSTATE(JPGR_EBADSTATE);
+		SETSTATE(0xDEADBEEF);
 		return;
 	}
 	jpgr->inputfn = fn;
@@ -593,8 +602,9 @@ skipbytes(struct TJPGRPrvt* jpgr, uintxx amount)
 
 	while (amount) {
 		r = amount;
-		if (r > 256)
+		if (r > 256) {
 			r = 256;
+		}
 
 		if (ensurebytes(jpgr, r) == 0) {
 			break;
@@ -676,7 +686,7 @@ parsesegments(struct TJPGRPrvt* jpgr)
 			if (jpgr->public.state != 3) {
 				/* premature end of file */
 				SETERROR(JPGR_EBADDATA);
-				SETSTATE(JPGR_BADSTATE);
+				SETSTATE(0xDEADBEEF);
 				return 0;
 			}
 
@@ -693,7 +703,7 @@ parsesegments(struct TJPGRPrvt* jpgr)
 
 			/* ICCP */
 			case APP2:
-				if ((jpgr->public.flags & JPGR_IGNOREICCP) == 0) {
+				if (jpgr->iccpmode == 0 && jpgr->iccpfn) {
 					if (parseAPP2(jpgr) == 0) {
 						return 0;
 					}
@@ -739,6 +749,7 @@ parsesegments(struct TJPGRPrvt* jpgr)
 				if (parseSOS(jpgr) == 0) {
 					return 0;
 				}
+				jpgr->iccpmode = 2;
 				return 1;
 		}
 
@@ -767,7 +778,7 @@ parsesegments(struct TJPGRPrvt* jpgr)
 }
 
 
-#define ADDWARNING(W) (jpgr->public.warnings |= (W))
+#define SETWARNING(W) (jpgr->public.warnings |= (W))
 
 
 #define JFIFID 0x4a464946
@@ -787,13 +798,13 @@ parseAPP0(struct TJPGRPrvt* jpgr)
 	r -= 2;
 
 	if (jpgr->segmentmap.APP0s == 1) {
-		ADDWARNING(JPGR_SEGMENTORDER);
+		SETWARNING(JPGR_SEGMENTORDER);
 		goto L_SKIP;
 	}
 	jpgr->segmentmap.APP0s = 1;
 
 	if (jpgr->segmentmap.SOFXs == 1) {
-		ADDWARNING(JPGR_SEGMENTORDER);
+		SETWARNING(JPGR_SEGMENTORDER);
 	}
 
 	if (r < 5 || (s = readinput(jpgr, 5)) == NULL ) {
@@ -802,18 +813,18 @@ parseAPP0(struct TJPGRPrvt* jpgr)
 	r -= 5;
 	signature = TOI32(s[0], s[1], s[2], s[3]);
 	if (signature != JFIFID && signature != JFXXID) {
-		ADDWARNING(JPGR_BADSIGNATURE);
+		SETWARNING(JPGR_BADSIGNATURE);
 		goto L_SKIP;
 	}
 
-	if (r < 7 || (s = readinput(jpgr, 7)) == NULL ) {
+	if (r < 7 || (s = readinput(jpgr, 7)) == NULL) {
 		return 0;
 	}
 	r -= 7;
 	jpgr->public.majorversion = s[0];
 	jpgr->public.minorversion = s[1];
 	if (jpgr->public.majorversion != 1) {
-		ADDWARNING(JPGR_BADVERSION);
+		SETWARNING(JPGR_BADVERSION);
 		goto L_SKIP;
 	}
 
@@ -838,8 +849,188 @@ L_SKIP:
 #undef OCADID
 
 
+/* */
+struct TICCPChunk {
+	uint32 s1;
+	uint32 s2;
+};
+
+CTB_INLINE struct TICCPChunk
+parseICCPchunk(uint8* s)
+{
+	uintxx i;
+	uint32 s1;
+	uint32 s2;
+	static const uint8 signature[] = "ICC_PROFILE";
+
+	for (i = 0; i < 12; i++) {
+		if (signature[i] != s[i]) {
+			return (struct TICCPChunk) {0, 0};
+		}
+	}
+	s += 12;
+
+	s1 = s[0];
+	s2 = s[1];
+	return (struct TICCPChunk) {s1, s2};
+}
+
+static uintxx
+readnextICCPsequence(struct TJPGRPrvt* jpgr, struct TICCPChunk* chunk)
+{
+	uintxx m;
+
+	m = 0;
+	for (;;) {
+		if (ensurebytes(jpgr, 2) == 0) {
+			return 0;
+		}
+
+		if (jpgr->bgn[0] ^ 0xff) {
+			return 0;
+		}
+		else {
+			if (jpgr->bgn[1] == 0xff) {
+				consumebytes(jpgr, 1);
+				continue;
+			}
+			m = TOI16(0xff, jpgr->bgn[1]);
+			break;
+		}
+	}
+
+	if (m == APP2) {
+		uintxx r;
+		uint8* s;
+
+		if (ensurebytes(jpgr, 4) == 0) {
+			return 0;
+		}
+		s = jpgr->bgn + 2;
+
+		r = TOI16(s[0], s[1]);
+		if (r < 16) {
+			return 0;
+		}
+
+		if (ensurebytes(jpgr, 18) == 0) {
+			return 0;
+		}
+		s = jpgr->bgn + 4;
+
+		chunk[0] = parseICCPchunk(s);
+		if (chunk[0].s1 > 1) {
+			consumebytes(jpgr, 18);
+			return r - 16;
+		}
+	}
+	return 0;
+}
+
+static bool
+readICCP(struct TJPGRPrvt* jpgr, uint8* target)
+{
+	uintxx total;
+	uintxx r;
+	uintxx m;
+	uint32 s1;
+
+	s1 = 1;
+	r  = jpgr->iccpremaining;
+	for (total = jpgr->iccpsize; total; total -= m) {
+		uint8* s;
+
+		if (r == 0) {
+			struct TICCPChunk chunk[1];
+
+			r = readnextICCPsequence(jpgr, chunk);
+			if (r == 0) {
+				return 0;
+			}
+
+			s1++;
+			if (s1 != chunk[0].s1 || jpgr->iccps2 != chunk[0].s2) {
+				SETWARNING(JPGR_ICCPSEQUENCE);
+
+				skipbytes(jpgr, r);
+				return 0;
+			}
+		}
+
+		m = r;
+		if (m > 256) {
+			m = 256;
+		}
+		if (m > total) {
+			m = total;
+		}
+
+		s = readinput(jpgr, m);
+		if (s == NULL) {
+			SETERROR(JPGR_EBADDATA);
+			SETSTATE(0xDEADBEEF);
+			return 0;
+		}
+		ctb_memcpy(target, s, m);
+		target += m;
+		r -= m;
+	}
+
+	/* skip trailing bytes */
+	if (r) {
+		consumebytes(jpgr, r);
+		if (jpgr->public.error) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
+uintxx
+jpgr_readICCP(const TJPGReader* state, uint8* target)
+{
+	bool r;
+	struct TJPGRPrvt* jpgr;
+	CTB_ASSERT(state);
+
+	jpgr = CTB_CONSTCAST(state);
+	if (jpgr->public.state == 0xDEADBEEF) {
+		return 0;
+	}
+	if (jpgr->iccpmode ^ 1) {
+		SETERROR(JPGR_EINCORRECTUSE);
+		SETSTATE(0xDEADBEEF);
+		return 0;
+	}
+	else {
+		switch (jpgr->public.state) {
+			case 0:
+				break;
+			case 1:
+			case 2:
+			case 3:
+				if (jpgr->public.error == 0) {
+					SETERROR(JPGR_EINCORRECTUSE);
+				}
+				SETSTATE(0xDEADBEEF);
+				return 0;
+			case 4:
+			case 5:
+				return 0;
+		}
+	}
+
+	if (target == NULL) {
+		return 1;
+	}
+
+	r = readICCP(jpgr, target);
+	jpgr->iccpmode = 2;
+	return r;
+}
+
 CTB_INLINE uintxx
-checkiccheader(struct TJPGRPrvt* jpgr, uint8* s)
+parseICCPheader(struct TJPGRPrvt* jpgr, uint8* s)
 {
 	uintxx size;
 
@@ -854,110 +1045,16 @@ checkiccheader(struct TJPGRPrvt* jpgr, uint8* s)
 		return 0;
 	}
 
-	if (size > MAXICCPSIZE || size < 0x80) {
-		SETERROR(JPGR_ELIMIT);
+	if (size > MAXICCPSIZE) {
+		SETWARNING(JPGR_ICCPSIZE);
 		return 0;
 	}
+	if (size < 0x80) {
+		SETWARNING(JPGR_BADICCP);
+		return 0;
+	}
+
 	return size;
-}
-
-CTB_INLINE uintxx
-readiccp(struct TJPGRPrvt* jpgr, uintxx remaining)
-{
-	uintxx r;
-	uintxx total;
-	uint8* bgn;
-	uint8* end;
-	uint8* s;
-
-	end = jpgr->iccpmemory + jpgr->iccpmsize;
-	bgn = jpgr->iccpappend;
-
-	r = remaining;
-	for (r = remaining; r; r -= total) {
-		uintxx v;
-
-		v = (uintxx) (end - bgn);
-		if (v > r)
-			v = r;
-
-		total = v;
-		if (total > 256)
-			total = 256;
-
-		if (total == 0) {
-			break;
-		}
-		s = readinput(jpgr, total);
-		if (s == NULL) {
-			return 0;
-		}
-
-		ctb_memcpy(bgn, s, total);
-		bgn += total;
-	}
-	return r;
-}
-
-CTB_INLINE bool
-checkiccpsignature(struct TJPGRPrvt* jpgr, uintxx r)
-{
-	uintxx i;
-	static const uint8 signature[] = "ICC_PROFILE";
-
-	if (r < 14) {
-		/* not an ICCP segment */
-		return 0;
-	}
-
-	if (ensurebytes(jpgr, 12) == 0) {
-		SETERROR(JPGR_EBADDATA);
-		return 0;
-	}
-	for (i = 0; i < 12; i++) {
-		if (signature[i] != jpgr->bgn[i]) {
-			return 0;
-		}
-	}
-	return 1;
-}
-
-CTB_INLINE bool
-primeiccpchunk(struct TJPGRPrvt* jpgr, uintxx r)
-{
-	uintxx total;
-	uint8* buffer;
-	uint8* s;
-
-	if (r < 0x80) {
-		/* not an ICCP header */
-		skipbytes(jpgr, r);
-		return 0;
-	}
-
-	s = readinput(jpgr, 0x80);
-	total = checkiccheader(jpgr, s);
-	if (total == 0) {
-		skipbytes(jpgr, r);
-
-		jpgr->iccpmode = 2;
-		return 0;
-	}
-
-	CTB_ASSERT(jpgr->iccpmemory == NULL);
-	buffer = request_(jpgr, total);
-	if (buffer == NULL) {
-		SETERROR(JPGR_EOOM);
-		return 0;
-	}
-	jpgr->iccpappend = buffer;
-	jpgr->iccpmemory = buffer;
-	jpgr->iccpmsize = total;
-
-	/* copy the header to the profile memory */
-	ctb_memcpy(jpgr->iccpappend, s, 0x80);
-	jpgr->iccpappend += 0x80;
-	return 1;
 }
 
 static uintxx
@@ -965,97 +1062,70 @@ parseAPP2(struct TJPGRPrvt* jpgr)
 {
 	uintxx r;
 	uint8* s;
-	uint8 s1;
-	uint8 s2;
+	struct TICCPChunk chunk;
 
 	r = read16(jpgr);
 	if (r < 1) {
-		if (jpgr->public.error == 0)
-			SETERROR(JPGR_EBADDATA);
 		return 0;
 	}
 	r -= 2;
 
-	if (checkiccpsignature(jpgr, r) == 0) {
-		if (jpgr->public.error) {
-			return 0;
-		}
-
-		skipbytes(jpgr, r);
-		if (jpgr->public.error) {
-			return 0;
-		}
-		return 1;
-	}
-	consumebytes(jpgr, 12);
-	r -= 12;
-
-	if (jpgr->iccpmode == 2) {
-		skipbytes(jpgr, r);
-		if (jpgr->public.error) {
-			return 0;
-		}
-		return 1;
+	if (r < 14) {
+		goto L_SKIP;
 	}
 
-	s = readinput(jpgr, 2);
+	s = readinput(jpgr, 14);
 	if (s == NULL) {
 		return 0;
 	}
+	r -= 14;
 
-	s1 = s[0];  /* sequence number */
-	s2 = s[1];  /* total */
-	r -= 2;
+	chunk = parseICCPchunk(s);
+	if (chunk.s1 == 1 && chunk.s2 >= 1) {
+		uintxx iccpsize;
 
-	if (jpgr->iccpmode == 0) {
-		if (primeiccpchunk(jpgr, r) == 0) {
+		if (r < 0x80) {
+			jpgr->iccpmode = 2;
+			SETWARNING(JPGR_BADICCP);
+			goto L_SKIP;
+		}
+		if (ensurebytes(jpgr, 0x80) == 0) {
+			SETERROR(JPGR_EBADDATA);
+			return 0;
+		}
+
+		iccpsize = parseICCPheader(jpgr, jpgr->bgn);
+		if (iccpsize == 0) {
+			jpgr->iccpmode = 2;
+			goto L_SKIP;
+		}
+		jpgr->iccpremaining = r;
+		jpgr->iccps2 = chunk.s2;
+
+		jpgr->iccpsize = iccpsize;
+		jpgr->iccpmode = 1;
+
+		jpgr->iccpfn((struct TJPGReader*) jpgr, iccpsize, jpgr->iccpuser);
+		if (jpgr->iccpmode == 1) {
+			skipbytes(jpgr, r);
 			if (jpgr->public.error) {
 				return 0;
 			}
-			if (jpgr->iccpmode == 2) {
-				ADDWARNING(JPGR_BADICCP);
-			}
-			return 1;
-		}
-		r -= 0x80;
-		jpgr->iccps1 = s1;
-		jpgr->iccps2 = s2;
-
-		jpgr->iccpmode = 1;
-	}
-
-	/* bad sequence */
-	if (s2 != jpgr->iccps2 || s1 != jpgr->iccps1) {
-		skipbytes(jpgr, r);
-		if (jpgr->public.error) {
-			return 0;
 		}
 
 		jpgr->iccpmode = 2;
-		ADDWARNING(JPGR_BADICCP);
 		return 1;
 	}
-	jpgr->iccps1++;
-
-	if ((r = readiccp(jpgr, r)) == 0) {
-		if (jpgr->public.error) {
-			return 0;
-		}
-	}
-
-	/* last sequence */
-	if (s1 == s2) {
-		jpgr->public.iccprofile = jpgr->iccpmemory;
-		jpgr->public.iccpsize   = jpgr->iccpmsize;
+	else {
+		/* out of order sequence */
 		jpgr->iccpmode = 2;
+		SETWARNING(JPGR_ICCPSEQUENCE);
 	}
 
-	/* ignore trailing bytes */
-	if (r) {
-		skipbytes(jpgr, r);
-		if (jpgr->public.error) {
-			return 0;
-		}
+L_SKIP:
+	skipbytes(jpgr, r);
+	if (jpgr->public.error) {
+		return 0;
 	}
 	return 1;
 }
@@ -1926,15 +1996,16 @@ jpgr_initdecoder(const TJPGReader* state, TImageInfo* info)
 	}
 
 	/* not a jpeg file */
-	if (jpgr->public.error == 0)
+	if (jpgr->public.error == 0) {
 		SETERROR(JPGR_EBADFILE);
+	}
 
 L_ERROR:
 	if (jpgr->public.error == 0) {
 		SETERROR(JPGR_EBADDATA);
 	}
 
-	SETSTATE(JPGR_BADSTATE);
+	SETSTATE(0xDEADBEEF);
 	return 0;
 }
 
@@ -1949,7 +2020,7 @@ jpgr_setbuffers(const TJPGReader* state, uint8* pixels)
 
 	jpgr = CTB_CONSTCAST(state);
 	if (jpgr->public.state ^ 1) {
-		SETSTATE(JPGR_BADSTATE);
+		SETSTATE(0xDEADBEEF);
 		if (jpgr->public.error == 0) {
 			SETERROR(JPGR_EINCORRECTUSE);
 		}
@@ -1959,7 +2030,7 @@ jpgr_setbuffers(const TJPGReader* state, uint8* pixels)
 	CTB_ASSERT(jpgr->mainmemory == NULL);
 	memory = request_(jpgr, jpgr->public.requiredmemory);
 	if (memory == NULL) {
-		SETSTATE(JPGR_BADSTATE);
+		SETSTATE(0xDEADBEEF);
 		SETERROR(JPGR_EOOM);
 		return;
 	}
@@ -2616,9 +2687,9 @@ extern void jpgr_inverseDCTASM(int16*, int16*, int16*);
 
 
 /*
-* Based on the paper (same algorithm used in IJG jpeg library and turbo-jpeg):
-* Practical fast 1-D DCT algorithms with 11 multiplications
-* by Christoph Loeffler, Adriaan Lieenberg and George S. Moschytz. */
+ * Based on the paper (same algorithm used in IJG jpeg library and turbo-jpeg):
+ * Practical fast 1-D DCT algorithms with 11 multiplications
+ * by Christoph Loeffler, Adriaan Lieenberg and George S. Moschytz. */
 
 static void
 inverseDCT(int16* sblock, int16* rblock, int16* qtable)
@@ -4091,7 +4162,7 @@ jpgr_decodeimg(const TJPGReader* state)
 	}
 
 L_ERROR:
-	SETSTATE(JPGR_BADSTATE);
+	SETSTATE(0xDEADBEEF);
 	return 0;
 }
 
@@ -4108,7 +4179,7 @@ jpgr_updateimg(const TJPGReader* state)
 	if (jpgr->public.state != 4 && jpgr->public.state != 3) {
 		if (jpgr->public.error == 0) {
 			SETERROR(JPGR_EINCORRECTUSE);
-			SETSTATE(JPGR_BADSTATE);
+			SETSTATE(0xDEADBEEF);
 			return;
 		}
 	}
@@ -4130,7 +4201,7 @@ jpgr_decodepass(const TJPGReader* state, bool update)
 			SETSTATE(3);
 		}
 		else {
-			SETSTATE(JPGR_BADSTATE);
+			SETSTATE(0xDEADBEEF);
 			if (jpgr->public.error == 0) {
 				SETERROR(JPGR_EINCORRECTUSE);
 			}
@@ -4207,7 +4278,7 @@ L_ERROR:
 	if (jpgr->public.error == 0) {
 		SETERROR(JPGR_EBADDATA);
 	}
-	SETSTATE(JPGR_BADSTATE);
+	SETSTATE(0xDEADBEEF);
 	return 0;
 }
 

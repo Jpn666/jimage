@@ -26,7 +26,7 @@
 #include <jimage/config/config.h>
 
 
-/* supported color modes for the resulting decoding */
+/* Supported color modes for the resulting decoding. */
 typedef enum  {
 	IMAGE_INVALID   = 0,
 	IMAGE_GRAY      = 1,
@@ -55,6 +55,7 @@ typedef struct TImageInfo TImageInfo;
 
 /*
  * IO function prototype.
+ *
  * Return value must be the number of bytes readed to the buffer
  * (zero if there is no more input avaible or -1 if there is an error). */
 typedef intxx (*TIMGInputFn)(uint8* buffer, uintxx size, void* user);

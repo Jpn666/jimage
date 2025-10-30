@@ -75,9 +75,14 @@ struct TPNGRPrvt {
 	uint8* mainmemory;
 	uintxx mainmsize;
 
-	/* allocated memory for the ICC profile (if any) */
-	uint8* iccpmemory;
-	uintxx iccpmsize;
+	/* ICCP function callback */
+	TPNGRICCPFn iccpfn;
+
+	/* ICCP function payload */
+	void* iccpuser;
+
+	uint32 iccpmode;
+	uintxx iccpsize;
 
 	/* progressive pass */
 	uintxx interpolate;
@@ -91,20 +96,14 @@ struct TPNGRPrvt {
 	/* input callback parameter */
 	void* payload;
 
-	/* inflate state */
-	struct TInflator* inflator;
+	/* */
+	const struct TZStrm* zstrm;
 
-	uintxx inputsize;
-	uintxx remaining;  /* chunk remaining bytes */
+	/* chunk remaining bytes */
+	uintxx remaining;  
 
-	/* last inflate call result */
-	uintxx result;
-
-	/* raw and uncompressed buffer */
-	uint8* tbgn;
-	uint8* tend;
+	/* internal buffer */
 	uint8 source[4096];
-	uint8 target[4096];
 
 	/* custom allocator */
 	const struct TAllocator* allctr;
@@ -144,20 +143,21 @@ pngr_create(ePNGRFlags flags, const TAllocator* allctr)
 	}
 	pngr->allctr = allctr;
 
-	if ((pngr->inflator = inflator_create(0, allctr)) == NULL) {
+	pngr->zstrm = zstrm_create(ZSTRM_INFLATE | ZSTRM_ZLIB, 0, allctr);
+	if (pngr->zstrm == NULL) {
 		dispose_(pngr, pngr, sizeof(struct TPNGRPrvt));
 		return NULL;
 	}
-	pngr->iccpmemory = NULL;
+
 	pngr->mainmemory = NULL;
-	pngr_reset((const TPNGReader*) pngr);
+	pngr_reset((const void*) pngr);
 
 	pngr->public.flags = flags;
-	return (const TPNGReader*) pngr;
+	return (const void*) pngr;
 }
 
 
-#define SETERROR(ERROR) (pngr->public.error = (ERROR))
+#define SETERROR(ERROR) (pngr->public.error = (ERROR), printf("set error on line %u\n", __LINE__))
 #define SETSTATE(STATE) (pngr->public.state = (STATE))
 
 void
@@ -213,11 +213,6 @@ pngr_reset(const TPNGReader* state)
 
 	pngr->public.srgbintent = 0;
 
-	pngr->public.iccpname[0] = 0;
-	pngr->public.iccprofile  = NULL;
-	pngr->public.iccpsize    = 0;
-	pngr->public.iccpchecksum = 0;
-
 	pngr->public.physx = 0;
 	pngr->public.physy = 0;
 	pngr->public.physunit = 0;
@@ -241,19 +236,18 @@ pngr_reset(const TPNGReader* state)
 	}
 	pngr->mainmsize = 0;
 
-	if (pngr->iccpmemory) {
-		dispose_(pngr, pngr->iccpmemory, pngr->iccpmsize);
-		pngr->iccpmemory = NULL;
-	}
-	pngr->iccpmsize = 0;
+	pngr->iccpfn   = NULL;
+	pngr->iccpuser = NULL;
 
-	pngr->inputsize = 0;
+	pngr->iccpmode = 0;
+	pngr->iccpsize = 0;
+
 	pngr->remaining = 0;
-	pngr->source[0] = 0xff;
+	pngr->source[0] = 0;
 
 	pngr->payload = NULL;
 	pngr->inputfn = NULL;
-	inflator_reset(pngr->inflator);
+	zstrm_reset(pngr->zstrm);
 }
 
 void
@@ -269,11 +263,28 @@ pngr_destroy(const TPNGReader* state)
 	if (pngr->mainmemory) {
 		dispose_(pngr, pngr->mainmemory, pngr->mainmsize);
 	}
-	if (pngr->iccpmemory) {
-		dispose_(pngr, pngr->iccpmemory, pngr->iccpmsize);
-	}
-	inflator_destroy(pngr->inflator);
+
+	zstrm_destroy(pngr->zstrm);
 	dispose_(pngr, pngr, sizeof(struct TPNGRPrvt));
+}
+
+void
+pngr_setICCPfn(const TPNGReader* state, TPNGRICCPFn fn, void* user)
+{
+	struct TPNGRPrvt* pngr;
+	CTB_ASSERT(state);
+
+	pngr = CTB_CONSTCAST(state);
+	if (pngr->public.state || pngr->iccpmode) {
+		SETSTATE(0xDEADBEEF);
+		if (pngr->public.error == 0) {
+			SETERROR(PNGR_EINCORRECTUSE);
+		}
+		return;
+	}
+
+	pngr->iccpfn = fn;
+	pngr->iccpuser = user;
 }
 
 void
@@ -283,8 +294,8 @@ pngr_setinputfn(const TPNGReader* state, TIMGInputFn fn, void* user)
 	CTB_ASSERT(state);
 
 	pngr = CTB_CONSTCAST(state);
-	if (pngr->public.state) {
-		SETSTATE(PNGR_BADSTATE);
+	if (pngr->public.state || pngr->iccpmode) {
+		SETSTATE(0xDEADBEEF);
 		if (pngr->public.error == 0) {
 			SETERROR(PNGR_EINCORRECTUSE);
 		}
@@ -518,70 +529,6 @@ L_ERROR:
 	return 0;
 }
 
-CTB_INLINE bool
-readzlibheader(struct TPNGRPrvt* pngr)
-{
-	uintxx i;
-	uintxx cm;
-	uintxx ci;
-	uint8 s[2];
-
-	/* since it's part of an IDAT chuck these 2 bytes can be on diferent
-	 * chunks */
-	for (i = 0; i < 2;) {
-		if (pngr->remaining) {
-			if (readinput(pngr, s + i, 1)) {
-				pngr->remaining--;
-				i++;
-				continue;
-			}
-			return 0;
-		}
-		else {
-			struct TChunkHead head;
-
-			checkcrc32(pngr);
-			if (pngr->public.error) {
-				return 0;
-			}
-			head = getchunkhead(pngr);
-			if (head.fcc[0] != 'I' ||
-				head.fcc[1] != 'D' ||
-				head.fcc[2] != 'A' || head.fcc[3] != 'T') {
-				if (pngr->public.error == 0)
-					SETERROR(PNGR_EBADDATA);
-				return 0;
-			}
-
-			initcrc32(pngr, CRC32_IDAT);
-			pngr->remaining = head.length;
-		}
-	}
-
-	/* check the zlib header */
-	cm = (s[0] >> 0) & 0x0f;
-	ci = (s[0] >> 4) & 0x0f;
-	if (cm == 8 && ci <= 7) {
-		uintxx fdict;
-		uintxx fchck;
-
-		fchck = (s[0] << 8) | s[1];
-		if (fchck % 31) {
-			goto L_ERROR;
-		}
-		fdict = (s[1] >> 5) & 0x01;
-		if (fdict) {
-			goto L_ERROR;
-		}
-		return 1;
-	}
-
-L_ERROR:
-	SETERROR(PNGR_EBADDATA);
-	return 0;
-}
-
-
 /* critical chunks */
 static bool parsePLTE(struct TPNGRPrvt*, struct TChunkHead);
 
@@ -613,6 +560,15 @@ parsechunks(struct TPNGRPrvt* pngr)
 		}
 
 		fcc = TOI32(head.fcc[0], head.fcc[1], head.fcc[2], head.fcc[3]);
+		if (pngr->public.state == 3) {
+			if (fcc == TOI32('I', 'D', 'A', 'T')) {
+				initcrc32(pngr, CRC32_IDAT);
+				pngr->remaining = head.length;
+				return 1;
+			}
+			return 0;
+		}
+
 		switch (fcc) {
 			case TOI32('I', 'E', 'N', 'D'):
 				if (pngr->public.state == 4) {
@@ -657,10 +613,7 @@ parsechunks(struct TPNGRPrvt* pngr)
 
 				initcrc32(pngr, CRC32_IDAT);
 				pngr->remaining = head.length;
-				if (readzlibheader(pngr)) {
-					return 1;
-				}
-				return 0;
+				return 1;
 
 			default:
 				break;
@@ -677,14 +630,15 @@ parsechunks(struct TPNGRPrvt* pngr)
 }
 
 CTB_INLINE bool
-consumechunk(struct TPNGRPrvt* pngr, uintxx total)
+consumebytes(struct TPNGRPrvt* pngr, uintxx total)
 {
 	uintxx j;
 
 	while (total) {
 		j = sizeof(pngr->source);
-		if (j > total)
+		if (j > total) {
 			j = total;
+		}
 
 		if (readinput(pngr, pngr->source, j) == 0) {
 			return 0;
@@ -764,7 +718,7 @@ parseancillary(struct TPNGRPrvt* pngr, uint32 fcc, struct TChunkHead head)
 			SETERROR(PNGR_ELIMIT);
 			return 0;
 		}
-		if (consumechunk(pngr, head.length) == 0) {
+		if (consumebytes(pngr, head.length) == 0) {
 			return 0;
 		}
 	}
@@ -974,7 +928,7 @@ pngr_initdecoder(const TPNGReader* state, TImageInfo* info)
 	CTB_ASSERT(state && info);
 
 	pngr = CTB_CONSTCAST(state);
-	if (pngr->public.state) {
+	if (pngr->public.state || pngr->iccpmode) {
 		if (pngr->public.error == 0) {
 			SETERROR(PNGR_EINCORRECTUSE);
 		}
@@ -1007,11 +961,6 @@ pngr_initdecoder(const TPNGReader* state, TImageInfo* info)
 					setuppasses(pngr);
 				}
 
-				/* sets the decompression stuff ready */
-				pngr->tbgn = pngr->target;
-				pngr->tend = pngr->target;
-				pngr->result = INFLT_SRCEXHSTD;
-
 				/* ready to start decoding */
 				SETSTATE(1);
 				pngr->public.requiredmemory = pngr->rowmemory << 1;
@@ -1026,7 +975,7 @@ L_ERROR:
 	if (pngr->public.error == 0) {
 		SETERROR(PNGR_EBADDATA);
 	}
-	SETSTATE(PNGR_BADSTATE);
+	SETSTATE(0xDEADBEEF);
 	return 0;
 }
 
@@ -1039,7 +988,7 @@ pngr_setbuffers(const TPNGReader* state, uint8* pixels, uint8* idxs)
 
 	pngr = CTB_CONSTCAST(state);
 	if (pngr->public.state ^ 1) {
-		SETSTATE(PNGR_BADSTATE);
+		SETSTATE(0xDEADBEEF);
 		if (pngr->public.error == 0) {
 			SETERROR(PNGR_EINCORRECTUSE);
 		}
@@ -1049,7 +998,7 @@ pngr_setbuffers(const TPNGReader* state, uint8* pixels, uint8* idxs)
 	CTB_ASSERT(pngr->mainmemory == NULL);
 	pngr->mainmemory = request_(pngr, pngr->public.requiredmemory);
 	if (pngr->mainmemory == NULL) {
-		SETSTATE(PNGR_BADSTATE);
+		SETSTATE(0xDEADBEEF);
 		SETERROR(PNGR_EOOM);
 		return;
 	}
@@ -1142,8 +1091,7 @@ parsePLTE(struct TPNGRPrvt* pngr, struct TChunkHead head)
 }
 
 
-#define SETPROPERTY(PROPERTY) (pngr->public.properties |= (PROPERTY))
-#define ADDWARNING(WARNING)   (pngr->public.warnings   |=  (WARNING))
+#define SETPROPERTY(CHUNK) (pngr->public.properties |= (CHUNK))
 
 static bool
 parseTRNS(struct TPNGRPrvt* pngr, struct TChunkHead head)
@@ -1238,6 +1186,9 @@ parseTRNS(struct TPNGRPrvt* pngr, struct TChunkHead head)
 	return 1;
 }
 
+
+#define SETWARNING(WARNING) (pngr->public.warnings |= (WARNING))
+
 static bool
 parseCHRM(struct TPNGRPrvt* pngr, struct TChunkHead head)
 {
@@ -1272,23 +1223,27 @@ parseCHRM(struct TPNGRPrvt* pngr, struct TChunkHead head)
 
 	/* each value is encoded as a four-byte PNG unsigned integer,
 	 * representing the x or y value times 100000 */
-	a = TOI32(s[0], s[1], s[2], s[3]); s += 4;
-	b = TOI32(s[0], s[1], s[2], s[3]); s += 4;
+	a = TOI32(s[0], s[1], s[2], s[3]);
+	s += 4;
+	b = TOI32(s[0], s[1], s[2], s[3]);
+	s += 4;
 	pngr->public.wpointx = (flt32) a * 0.00001f;
 	pngr->public.wpointy = (flt32) b * 0.00001f;
 
 	if (a == 0 || b == 0) {
-		ADDWARNING(PNGR_BADCHRM);
+		SETWARNING(PNGR_BADCHRM);
 	}
 
 	for (i = 0; i < 3; i++) {
-		a = TOI32(s[0], s[1], s[2], s[3]); s += 4;
-		b = TOI32(s[0], s[1], s[2], s[3]); s += 4;
+		a = TOI32(s[0], s[1], s[2], s[3]);
+		s += 4;
+		b = TOI32(s[0], s[1], s[2], s[3]);
+		s += 4;
 
 		pngr->public.chromax[i] = (flt32) a * 0.00001f;
 		pngr->public.chromay[i] = (flt32) b * 0.00001f;
 		if (a == 0 || b == 0) {
-			ADDWARNING(PNGR_BADCHRM);
+			SETWARNING(PNGR_BADCHRM);
 		}
 	}
 
@@ -1339,7 +1294,7 @@ parseGAMA(struct TPNGRPrvt* pngr, struct TChunkHead head)
 	pngr->public.gamma = (flt32) n * 0.00001f;
 
 	if (n == 0) {
-		ADDWARNING(PNGR_BADGAMA);
+		SETWARNING(PNGR_BADGAMA);
 	}
 	else {
 		SETPROPERTY(PNGR_GAMA);
@@ -1405,7 +1360,7 @@ parseSBIT(struct TPNGRPrvt* pngr, struct TChunkHead head)
 	for (i = 0; i < size; i++) {
 		if (s[i] > j || s[i] == 0) {
 			j = 0;  /* bad value */
-			ADDWARNING(PNGR_BADSBIT);
+			SETWARNING(PNGR_BADSBIT);
 			break;
 		}
 	}
@@ -1461,7 +1416,7 @@ parseSRGB(struct TPNGRPrvt* pngr, struct TChunkHead head)
 		pngr->public.srgbintent = s[0];
 	}
 	else {
-		ADDWARNING(PNGR_BADSRGB);
+		SETWARNING(PNGR_BADSRGB);
 	}
 	return 1;
 }
@@ -1519,8 +1474,10 @@ parseBKGD(struct TPNGRPrvt* pngr, struct TChunkHead head)
 		pngr->public.background[0] = TOI16(s[0], s[1]);
 		s += 2;
 		if (size > 2) {
-			pngr->public.background[1] = TOI16(s[0], s[1]); s += 2;
-			pngr->public.background[2] = TOI16(s[0], s[1]); s += 2;
+			pngr->public.background[1] = TOI16(s[0], s[1]);
+			s += 2;
+			pngr->public.background[2] = TOI16(s[0], s[1]);
+			s += 2;
 		}
 	}
 
@@ -1553,8 +1510,10 @@ parsePHYS(struct TPNGRPrvt* pngr, struct TChunkHead head)
 	if (head.length != 9 || readinput(pngr, s, 9) == 0) {
 		return 0;
 	}
-	pngr->public.physx = TOI32(s[0], s[1], s[2], s[3]); s += 4;
-	pngr->public.physy = TOI32(s[0], s[1], s[2], s[3]); s += 4;
+	pngr->public.physx = TOI32(s[0], s[1], s[2], s[3]);
+	s += 4;
+	pngr->public.physy = TOI32(s[0], s[1], s[2], s[3]);
+	s += 4;
 
 	checkcrc32(pngr);
 	if (pngr->public.error) {
@@ -1569,32 +1528,89 @@ parsePHYS(struct TPNGRPrvt* pngr, struct TChunkHead head)
 		SETPROPERTY(PNGR_PHYS);
 	}
 	else {
-		ADDWARNING(PNGR_BADPHYS);
+		SETWARNING(PNGR_BADPHYS);
 	}
 	return 1;
 }
 
 
-#define SRCBUFFERSZ sizeof(((struct TPNGRPrvt*) 0)->source)
-#define TGTBUFFERSZ sizeof(((struct TPNGRPrvt*) 0)->target)
+uintxx
+pngr_readICCP(const TPNGReader* state, uint8* target)
+{
+	uintxx r;
+	uintxx total;
+	struct TPNGRPrvt* pngr;
+	CTB_ASSERT(state);
 
-/* we need at least a target buffer of 128 bytes and a source
- * buffer of 80 bytes, but 256 bytes for both buffers is a sane limit */
-typedef union {
-	char sbuffer_badsize[-1 + (SRCBUFFERSZ > 256) * 2];
-	char tbuffer_badsize[-1 + (TGTBUFFERSZ > 256) * 2];
-} TTypePNGRBufferSizeStaticAssert;
+	pngr = CTB_CONSTCAST(state);
+	if (pngr->public.state == 0xDEADBEEF) {
+		return 0;
+	}
+	if (pngr->iccpmode ^ 1) {
+		SETERROR(PNGR_EINCORRECTUSE);
+		SETSTATE(0xDEADBEEF);
+		return 0;
+	}
+	else {
+		switch (pngr->public.state) {
+			case 0:
+				break;
+			case 1:
+			case 2:
+			case 3:
+				if (pngr->public.error == 0) {
+					SETERROR(PNGR_EINCORRECTUSE);
+				}
+				SETSTATE(0xDEADBEEF);
+				return 0;
+			case 4:
+			case 5:
+				return 0;
+		}
+	}
 
+	if (target == NULL) {
+		return 1;
+	}
+
+	ctb_memcpy(target, pngr->source, 128);
+	target += 128;
+
+	total = pngr->iccpsize - 128;
+	r = zstrm_inflate(pngr->zstrm, target, total);
+	if (r ^ total || pngr->zstrm->error) {
+		SETWARNING(PNGR_BADICCP);
+		return 0;
+	}
+	return 1;
+}
+
+
+static intxx
+ICCPsourcefn(uint8* source, uintxx total, struct TPNGRPrvt* pngr)
+{
+	uintxx r;
+
+	if (pngr->remaining == 0) {
+		return 0;
+	}
+
+	r = total;
+	if (r > pngr->remaining) {
+		r = pngr->remaining;
+	}
+	if (readinput(pngr, source, r) == 0) {
+		return -1;
+	}
+
+	pngr->remaining -= r;
+	return (intxx) r;
+}
 
 CTB_INLINE uintxx
-checkiccheader(uint8* header)
+parseICCPheader(uint8* s)
 {
 	uintxx size;
-	uint8* s;
-
-	/* we need to parse the ICC profile header to determine the final profile
-	 * size after decompression */
-	s = header;
 
 	/* offset zero is the profile size (uint32), signature is at
 	 * offset 36 (0x61637370) "acsp" */
@@ -1606,203 +1622,77 @@ checkiccheader(uint8* header)
 		s[2] != 's' && s[3] != 'p') {
 		return 0;
 	}
-
-	if (size > MAXICCPSIZE || size < 0x80) {
-		return 0;
-	}
 	return size;
 }
 
-CTB_INLINE void
-filterstring(uint8* src, uint8* dst, uintxx size)
-{
-	uintxx i;
-
-	for (i = 0; i < size; i++) {
-		dst[i] = src[i];
-		if (src[i] == 0) {
-			break;
-		}
-		if (src[i] < 161) {
-			if (src[i] >= 32 && src[i] <= 126) {
-				continue;
-			}
-
-			/* replace the invalid character with: ? */
-			dst[i] = 0x63;
-		}
-	}
-}
-
 static bool
-readiccprofile(struct TPNGRPrvt* pngr, uintxx size)
+readICCP(struct TPNGRPrvt* pngr, uintxx chunksize)
 {
 	uintxx r;
 	uintxx total;
-	uintxx headerdone;
-	uintxx result;
-	uintxx remaining;
 	uint8* s;
-	uint8* profile;
-	uint8* profileend;
 
-	/* 1-79 + NULL + compression method + zlib header */
 	total = 80;
-	if (total > size)
-		total = size;
+	if (total > chunksize) {
+		total = chunksize;
+	}
 
+	/* 1-79 + NULL + compression method + zlib compressed data */
 	s = pngr->source;
-	remaining  = 0;
-	profile    = NULL;
-	profileend = NULL;
 	for (r = 0; r < total; r++) {
 		if (readinput(pngr, s + r, 1) == 0) {
 			return 0;
 		}
 		if (s[r] == 0x00) {
+			r++;
 			break;
 		}
 	}
-	filterstring(s, pngr->public.iccpname, r);
 
-	/* compresion method + zlib header */
-	if (readinput(pngr, s, 3) == 0) {
+	r = chunksize - r;
+	if (r == 0) {
 		return 0;
 	}
 
-	/* only compression method 0 is allowed */
+	if (readinput(pngr, s, 1) == 0) {
+		return 0;
+	}
+	r--;
 	if (s[0]) {
-		goto L_ERROR;
+		consumebytes(pngr, r);
+		return 0;
 	}
-	r += 4;
+	s = pngr->source;
 
-	remaining  = size - r;
-	headerdone = 0;
+	pngr->remaining = r;
+	zstrm_setsourcefn(pngr->zstrm, (TZStrmIFn) ICCPsourcefn, pngr);
 
-	result = INFLT_SRCEXHSTD;
-	inflator_settgt(pngr->inflator, pngr->target, 0x80);
-	for (;;) {
-		if (result == INFLT_TGTEXHSTD) {
-			if (headerdone || inflator_tgtend(pngr->inflator) != 0x80) {
-				goto L_ERROR;
-			}
-
-			total = checkiccheader(pngr->target);
-			if (total == 0) {
-				goto L_ERROR;
-			}
-
-			CTB_ASSERT(pngr->iccpmemory == NULL);
-			pngr->iccpmemory = request_(pngr, total);
-			if (pngr->iccpmemory == NULL) {
-				SETERROR(PNGR_EOOM);
-				return 0;
-			}
-			pngr->iccpmsize = total;
-
-			profile    = pngr->iccpmemory;
-			profileend = profile + total;
-
-			/* copy the header */
-			ctb_memcpy(profile, pngr->target, 0x80);
-
-			/* now we are decoding it to the final memory location */
-			profile += 0x80;
-			inflator_settgt(pngr->inflator, profile, total - 0x80);
-			headerdone = 1;
+	r = zstrm_inflate(pngr->zstrm, s, 128);
+	if (r == 128) {
+		total = parseICCPheader(s);
+		if (total == 0 || total > MAXICCPSIZE) {
+			r = 0;
+			goto L1;
 		}
-		else {
-			if (result == INFLT_SRCEXHSTD) {
-				if (remaining == 0) {
-					goto L_ERROR;
-				}
+		pngr->iccpsize = total;
 
-				if (remaining < (r = SRCBUFFERSZ))
-					r = remaining;
-
-				if (readinput(pngr, s, r)) {
-					inflator_setsrc(pngr->inflator, s, (pngr->inputsize = r));
-					remaining -= r;
-				}
-				else {
-					return 0;
-				}
-			}
-		}
-
-		result = inflator_inflate(pngr->inflator, 0);
-		if (result == INFLT_OK) {
-			uintxx left;
-
-			profile += inflator_tgtend(pngr->inflator);
-			if (profileend != profile) {
-				goto L_ERROR;
-			}
-
-			left = pngr->inputsize - (r = inflator_srcend(pngr->inflator));
-			if (left >= 4) {
-				s = s + r;
-				pngr->public.iccpchecksum = TOI32(s[0], s[1], s[2], s[3]);
-			}
-			else {
-				/* truncated checksum */
-				if (remaining + left >= 4) {
-					switch (left) {
-						case 3: s[2] = s[r + 2];  /* fallthrough */
-						case 2: s[1] = s[r + 1];  /* fallthrough */
-						case 1: s[0] = s[r + 0];
-					}
-
-					left = 4 - left;
-					if (readinput(pngr, s + left, left) == 0) {
-						return 0;
-					}
-					pngr->public.iccpchecksum = TOI32(s[0], s[1], s[2], s[3]);
-					remaining -= left;
-				}
-				else {
-					goto L_ERROR;
-				}
-			}
-
-			/* ignore the remaning input left in the chunk */
-			if (remaining) {
-				if (consumechunk(pngr, remaining) == 0) {
-					return 0;
-				}
-			}
-
-			checkcrc32(pngr);
-			if (pngr->public.error) {
-				return 0;
-			}
-			pngr->public.iccprofile = pngr->iccpmemory;
-			pngr->public.iccpsize   = total;
-
-			inflator_reset(pngr->inflator);
-			return 1;
-		}
-		else {
-			if (result == INFLT_ERROR) {
-				goto L_ERROR;
-			}
-		}
+		pngr->iccpmode = 1;
+		pngr->iccpfn((void*) pngr, total, pngr->iccpuser);
+		r = 1;
+	}
+	else {
+		r = 0;
 	}
 
-L_ERROR:
-	if (remaining) {
-		if (consumechunk(pngr, remaining) == 0) {
+L1:
+	zstrm_reset(pngr->zstrm);
+	if (pngr->remaining) {
+		consumebytes(pngr, pngr->remaining);
+		if (pngr->public.error) {
 			return 0;
 		}
 	}
-	checkcrc32(pngr);
-	if (pngr->public.error) {
-		return 0;
-	}
-	pngr->public.iccpname[0] = 0;
-
-	inflator_reset(pngr->inflator);
-	return 0;
+	return (bool) r;
 }
 
 static bool
@@ -1826,219 +1716,93 @@ parseICCP(struct TPNGRPrvt* pngr, struct TChunkHead head)
 	}
 	pngr->chunkmap.ICCP = 1;
 
-	if (head.length > MAXCHUNKSIZE) {
-		SETERROR(PNGR_ELIMIT);
-		return 0;
-	}
-
 	initcrc32(pngr, CRC32_ICCP);
-	if (pngr->public.flags & PNGR_IGNOREICCP) {
-		if (head.length) {
-			if (consumechunk(pngr, head.length) == 0) {
+	if (pngr->iccpfn) {
+		if (readICCP(pngr, head.length)) {
+			SETPROPERTY(PNGR_ICCP);
+		}
+		else {
+			if (pngr->public.error) {
 				return 0;
 			}
+			SETWARNING(PNGR_BADICCP);
 		}
-		checkcrc32(pngr);
-		if (pngr->public.error) {
-			return 0;
-		}
-		return 1;
-	}
-
-	if (readiccprofile(pngr, head.length)) {
-		SETPROPERTY(PNGR_ICCP);
 	}
 	else {
-		if (pngr->public.error) {
+		if (consumebytes(pngr, head.length) == 0) {
 			return 0;
 		}
-		ADDWARNING(PNGR_BADICCP);
+	}
+	checkcrc32(pngr);
+	if (pngr->public.error) {
+		return 0;
 	}
 	return 1;
 }
 
 #undef SETPROPERTY
-#undef ADDWARNING
+#undef SETWARNING
 
 #undef TOI32
 #undef TOI16
 
 
-static uintxx
-inflateidat(struct TPNGRPrvt* pngr)
+CTB_INLINE bool
+readnextIDAT(struct TPNGRPrvt* pngr)
 {
 	uintxx r;
-	uintxx limit;
 
-	for (;;) {
-		if (pngr->result == INFLT_SRCEXHSTD) {
-			limit = pngr->remaining;
-
-			if (limit == 0) {
-				struct TChunkHead head;
-
-				checkcrc32(pngr);
-				if (pngr->public.error) {
-					break;
-				}
-
-				head = getchunkhead(pngr);
-				if (head.fcc[0] != 'I' ||
-					head.fcc[1] != 'D' ||
-					head.fcc[2] != 'A' || head.fcc[3] != 'T') {
-					/* bad or incomplete stream */
-					if (pngr->public.error == 0) {
-						SETERROR(PNGR_EBADDATA);
-					}
-					SETSTATE(PNGR_BADSTATE);
-					return 0;
-				}
-
-				initcrc32(pngr, CRC32_IDAT);
-				pngr->remaining = head.length;
-				continue;
-			}
-
-			if (limit > SRCBUFFERSZ) {
-				limit = SRCBUFFERSZ;
-			}
-
-			if (readinput(pngr, pngr->source, limit) == 0) {
-				return 0;
-			}
-			pngr->remaining -= (pngr->inputsize = limit);
-
-			inflator_setsrc(pngr->inflator, pngr->source, limit);
-		}
-		else {
-			if (pngr->result ^ INFLT_TGTEXHSTD) {
-				SETERROR(PNGR_EDEFLATE);
-				SETSTATE(PNGR_BADSTATE);
-				return 0;
-			}
-		}
-
-		inflator_settgt(pngr->inflator, pngr->target, TGTBUFFERSZ);
-
-		pngr->result = inflator_inflate(pngr->inflator, 0);
-		if (pngr->result == INFLT_ERROR) {
-			SETERROR(PNGR_EDEFLATE);
-			SETSTATE(PNGR_BADSTATE);
-			return 0;
-		}
-
-		r = inflator_tgtend(pngr->inflator);
-		if (r || pngr->result == INFLT_OK) {
-			return r;
-		}
+	if (pngr->public.error) {
+		return 0;
 	}
-
-	return 0;
-}
-
-#undef SRCBUFFERSZ
-#undef TGTBUFFERSZ
-
-
-CTB_INLINE uintxx
-consumetail(struct TPNGRPrvt* pngr, intxx remaining)
-{
-	struct TChunkHead head;
-
-	while (remaining) {
-		head = getchunkhead(pngr);
-		if (head.fcc[0] != 'I' ||
-			head.fcc[1] != 'D' ||
-			head.fcc[2] != 'A' || head.fcc[3] != 'T') {
-			/* bad or incomplete stream */
-			if (pngr->public.error == 0) {
-				SETERROR(PNGR_EBADDATA);
-			}
-			return 0;
-		}
-
-		initcrc32(pngr, CRC32_IDAT);
-		remaining -= head.length;
-		if (remaining < 0) {
-			SETERROR(PNGR_EBADDATA);
-			return 0;
-		}
-
-		consumechunk(pngr, head.length);
-		checkcrc32(pngr);
-		if (pngr->public.error) {
-			return 0;
-		}
+	r = parsechunks(pngr);
+	if (r == 0) {
+		SETERROR(PNGR_EDEFLATE);
+		return 0;
 	}
 	return 1;
 }
 
-CTB_INLINE bool
-checktail(struct TPNGRPrvt* pngr)
+static intxx
+IDATsourcefn(uint8* source, uintxx total, struct TPNGRPrvt* pngr)
 {
-	if (pngr->result == INFLT_SRCEXHSTD || pngr->result == INFLT_TGTEXHSTD) {
-		inflateidat(pngr);
+	uintxx remaining;
+	uintxx r;
+	uint8* s;
+
+	s = source;
+	if (pngr->remaining == 0) {
+		if (readnextIDAT(pngr) == 0) {
+			return -1;
+		}
+	}
+	remaining = pngr->remaining;
+
+	if (remaining) {
+		r = total;
+		if (total > remaining) {
+			r = remaining;
+		}
+		if (readinput(pngr, s, r) == 0) {
+			return -1;
+		}
+		s += r;
+
+		remaining -= r;
+		if (r == total) {
+			return (intxx) (s - source);
+		}
+		total -= r;
 	}
 
-	if (pngr->result == INFLT_OK) {
-		uintxx remaining;
-
-		if (pngr->remaining) {
-			SETERROR(PNGR_EBADDATA);
-			return 0;
-		}
+	if (remaining == 0) {
 		checkcrc32(pngr);
-		if (pngr->public.error) {
-			return 0;
-		}
-
-		/* le adler32 zlib stream tail */
-		remaining = pngr->inputsize - inflator_srcend(pngr->inflator);
-		remaining = 4 - remaining;
-		if (remaining > 0) {
-			if (consumetail(pngr, (intxx) remaining) == 0) {
-				return 0;
-			}
-		}
-		return 1;
+		pngr->remaining = 0;
 	}
-	return 0;
-}
-
-CTB_INLINE bool
-fetchrow(struct TPNGRPrvt* pngr, uint8* target, uintxx size)
-{
-	uintxx total;
-	uintxx avaible;
-	uintxx j;
-
-	for (total = size; total; ) {
-		avaible = (uintxx) (pngr->tend - pngr->tbgn);
-		if (CTB_EXPECT1(avaible)) {
-			j = avaible;
-			if (j > total) {
-				j = total;
-			}
-
-			ctb_memcpy(target, pngr->tbgn, j);
-			target     += j;
-			pngr->tbgn += j;
-
-			total -= j;
-		}
-		else {
-			uintxx r;
-
-			if (CTB_EXPECT0((r = inflateidat(pngr)) == 0)) {
-				return 0;
-			}
-			pngr->tbgn = pngr->target;
-			pngr->tend = pngr->tbgn + r;
-			continue;
-		}
+	else {
+		pngr->remaining = remaining;
 	}
-
-	return 1;
+	return (intxx) (s - source);
 }
 
 
@@ -2214,6 +1978,7 @@ decoderow(struct TPNGRPrvt* pngr, uintxx sizex, uintxx rowsize)
 	uint8* curr;
 	uint8* prev;
 	uintxx filter;
+	uintxx r;
 
 	pngr->currrow = pngr->rbuffers[0];
 	if (pngr->prevrow == pngr->rbuffers[0]) {
@@ -2222,9 +1987,13 @@ decoderow(struct TPNGRPrvt* pngr, uintxx sizex, uintxx rowsize)
 
 	curr = pngr->currrow;
 	prev = pngr->prevrow;
-	if (fetchrow(pngr, curr, rowsize) == 0) {
-		SETSTATE(PNGR_BADSTATE);
-		return NULL;
+	r = zstrm_inflate(pngr->zstrm, curr, rowsize);
+	if (r ^ rowsize) {
+		if (pngr->public.error == 0) {
+			SETERROR(PNGR_EBADDATA);
+		}
+		SETSTATE(0xDEADBEEF);
+		return NULL;		
 	}
 
 	filter = curr[0];
@@ -2233,7 +2002,7 @@ decoderow(struct TPNGRPrvt* pngr, uintxx sizex, uintxx rowsize)
 	if (CTB_EXPECT1(filter)) {
 		if (CTB_EXPECT0(filter > 4)) {
 			SETERROR(PNGR_EBADDATA);
-			SETSTATE(PNGR_BADSTATE);
+			SETSTATE(0xDEADBEEF);
 			return NULL;
 		}
 		UNFILTER(curr, prev, rowsize - 1, (filter << 16) | pngr->rawpelsize);
@@ -2376,9 +2145,10 @@ pngr_decodeimg(const TPNGReader* state)
 	if (pngr->public.state ^ 3) {
 		if (pngr->public.state == 2) {
 			SETSTATE(3);
+			zstrm_setsourcefn(pngr->zstrm, (TZStrmIFn) IDATsourcefn, pngr);
 		}
 		else {
-			SETSTATE(PNGR_BADSTATE);
+			SETSTATE(0xDEADBEEF);
 			if (pngr->public.error == 0) {
 				SETERROR(PNGR_EINCORRECTUSE);
 			}
@@ -2412,7 +2182,7 @@ pngr_decodeimg(const TPNGReader* state)
 
 		row = decoderow(pngr, pngr->public.sizex, pngr->rawrowsize);
 		if (CTB_EXPECT0(row == NULL)) {
-			SETSTATE(PNGR_BADSTATE);
+			SETSTATE(0xDEADBEEF);
 			return 0;
 		}
 
@@ -2452,11 +2222,6 @@ pngr_decodeimg(const TPNGReader* state)
 			}
 			idxs += pngr->public.sizex;
 		}
-	}
-
-	if (checktail(pngr) == 0)  {
-		SETSTATE(5);
-		return 1;
 	}
 
 	SETSTATE(4);
@@ -2623,10 +2388,11 @@ pngr_decodepass(const TPNGReader* state)
 	pngr = CTB_CONSTCAST(state);
 	if (pngr->public.state ^ 3) {
 		if (pngr->public.state == 2) {
-			pngr->public.state++;
+			SETSTATE(3);
+			zstrm_setsourcefn(pngr->zstrm, (TZStrmIFn) IDATsourcefn, pngr);
 		}
 		else {
-			SETSTATE(PNGR_BADSTATE);
+			SETSTATE(0xDEADBEEF);
 			if (pngr->public.error == 0) {
 				SETERROR(PNGR_EINCORRECTUSE);
 			}
@@ -2667,7 +2433,7 @@ pngr_decodepass(const TPNGReader* state)
 
 		rowpointer = decoderow(pngr, rowsize, memsize);
 		if (rowpointer == NULL) {
-			SETSTATE(PNGR_BADSTATE);
+			SETSTATE(0xDEADBEEF);
 			return 0;
 		}
 
@@ -2732,11 +2498,6 @@ pngr_decodepass(const TPNGReader* state)
 L_DONE:
 	r = ++pngr->pass;
 	if (r == ADAM7PASSES) {
-		if (checktail(pngr) == 0)  {
-			SETSTATE(5);
-			return 0;
-		}
-
 		SETSTATE(4);
 		if (parsechunks(pngr) == 0 || pngr->public.warnings) {
 			SETSTATE(5);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023, jpn
+ * Copyright (C) 2025, jpn
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -58,9 +58,19 @@ typedef enum {
 
 /* Flags */
 typedef enum {
-	JPGR_IGNOREICCP = 0x01,
-	JPGR_KEEPYCBCR  = 0x02
+	JPGR_KEEPYCBCR = 0x01
 } eJPGRFlags;
+
+
+/* Non fatal errors */
+typedef enum {
+	JPGR_BADSIGNATURE = 0x01,
+	JPGR_BADVERSION   = 0x02,
+	JPGR_SEGMENTORDER = 0x04,
+	JPGR_BADICCP      = 0x08,
+	JPGR_ICCPSIZE     = 0x10,
+	JPGR_ICCPSEQUENCE = 0x20
+} eJPGRWarning;
 
 
 /* State */
@@ -72,9 +82,6 @@ typedef enum {
 	JPGR_DECODED  =  1,
 	JPGR_DECODEDWITHERROR = 2
 } eJPGRState;
-
-
-#define JPGR_BADSTATE 0xDEADBEEF
 
 
 /* Public struct */
@@ -107,17 +114,13 @@ struct TJPGReader {
 	/* image component sampling */
 	uint8 vsampling[4];
 	uint8 hsampling[4];
-
-	/* ICC profile */
-	uint8* iccprofile;
-	uintxx iccpsize;
 };
 
 typedef struct TJPGReader TJPGReader;
 
 
 /*
- * */
+ * Creates a JPG reader with the given flags and allocator. */
 JIMAGE_API
 const TJPGReader* jpgr_create(eJPGRFlags flags, const TAllocator*);
 
@@ -132,18 +135,26 @@ JIMAGE_API
 void jpgr_reset(const TJPGReader*);
 
 /*
- * Sets the input function used to read the image data. */
+ * Sets the input function used to read the image data.
+ * 
+ * This function must be called before jpgr_initdecoder(). */
 JIMAGE_API
 void jpgr_setinputfn(const TJPGReader*, TIMGInputFn fn, void* user);
 
 /*
- * Init the decoder and determines the required internal memory nedeed
- * to decode the image. */
+ * Init the decoder and determines the required internal memory needed
+ * to decode the image.
+ * 
+ * The image info structure will be filled with the image properties. */
 JIMAGE_API
 bool jpgr_initdecoder(const TJPGReader*, TImageInfo* info);
 
 /*
- * Sets the target memory buffer for the decoded image (the complete image). */
+ * Sets the memory buffer for the decoded image.
+ * 
+ * The pixel buffer can be NULL. This function must be called before
+ * jpgr_decodeimg() and the pixels buffer should be large enough to hold
+ * the complete image. */
 JIMAGE_API
 void jpgr_setbuffers(const TJPGReader*, uint8* pixels);
 
@@ -153,33 +164,53 @@ JIMAGE_API
 uintxx jpgr_decodeimg(const TJPGReader*);
 
 /*
- * */
+ * Decodes the next pass of a progressive image, returns the next pass or zero
+ * is there are not more passes or in case of error. */
 JIMAGE_API
 uintxx jpgr_decodepass(const TJPGReader*, bool update);
 
 /*
- * */
+ * Updates the image buffer with the latest decoded data. */
 JIMAGE_API
 void jpgr_updateimg(const TJPGReader*);
 
 /*
- * */
+ * Checks if the image is progressive. */
 CTB_INLINE
 bool jpgr_isprogressive(const TJPGReader*);
 
+/*
+ * Gets the current status of the JPG reader. */
+CTB_INLINE
+eJPGRState jpgr_getstate(const TJPGReader*);
 
-/* Non fatal errors */
-typedef enum {
-	JPGR_BADSIGNATURE = 0x01,
-	JPGR_BADVERSION   = 0x02,
-	JPGR_BADICCP      = 0x04,
-	JPGR_SEGMENTORDER = 0x08
-} eJPGRWarning;
+
+/* ****************************************************************************
+ * ICCP handling
+ *************************************************************************** */
 
 /*
- * */
-CTB_INLINE
-eJPGRState jpgr_getstate(const TJPGReader*, uintxx* error, uintxx* wrnns);
+ * Callback function to read the ICCP. */
+typedef void (*TJPGRICCPFn)(const TJPGReader*, uintxx size, void* user);
+
+
+/*
+ * Sets the ICCP callback function.
+ *
+ * The callback function will be called when an ICCP is found on the image.
+ * This function should be called before jpgr_initdecoder(). */
+JIMAGE_API
+void jpgr_setICCPfn(const TJPGReader*, TJPGRICCPFn fn, void* user);
+
+/*
+ * Reads the ICCP into the target buffer.
+ *
+ * This function can only be used inside the callback function and the
+ * target buffer must be large enough to hold the complete ICCP profile.
+ * Using this function outside the callback function will invalidate the
+ * state. */
+JIMAGE_API
+uintxx jpgr_readICCP(const TJPGReader*, uint8* target);
 
 
 /*
@@ -194,14 +225,9 @@ jpgr_isprogressive(const TJPGReader* jpgr)
 }
 
 CTB_INLINE eJPGRState
-jpgr_getstate(const TJPGReader* jpgr, uintxx* error, uintxx* wrnns)
+jpgr_getstate(const TJPGReader* jpgr)
 {
 	CTB_ASSERT(jpgr);
-
-	if (wrnns)
-		wrnns[0] = jpgr->warnings;
-	if (error)
-		error[0] = jpgr->error;
 
 	switch (jpgr->state) {
 		case 0: return JPGR_NOTSET;
