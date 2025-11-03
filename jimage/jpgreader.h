@@ -86,30 +86,30 @@ typedef enum {
 
 /* Public struct */
 struct TJPGReader {
-	uintxx state;
-	uintxx flags;
-	uintxx error;
-	uintxx warnings;       /* non fatal errors */
+	uint32 state;
+	uint32 error;
+	uint32 flags;
+	uint32 warnings;       /* non fatal errors */
 
 	/* image size */
 	uint32 sizex;
 	uint32 sizey;
 
-	uintxx colortype;
-	uintxx depth;
+	uint32 colortype;
+	uint32 depth;
 
 	/* internal memory required for the decoder */
 	uintxx requiredmemory;
 
 	/* properties */
-	uintxx isprogressive;
+	uint32 isprogressive;
 
 	/* jpeg version and density */
-	uintxx majorversion;
-	uintxx minorversion;
-	uintxx xdensity;
-	uintxx ydensity;
-	uintxx unit;
+	uint32 majorversion;
+	uint32 minorversion;
+	uint32 xdensity;
+	uint32 ydensity;
+	uint32 unit;
 
 	/* image component sampling */
 	uint8 vsampling[4];

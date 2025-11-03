@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023, jpn
+ * Copyright (C) 2025, jpn
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -176,8 +176,8 @@ struct TJPGRPrvt {
 	uint32 iccps2;
 
 	/* image properties */
-	uintxx ysampling;
-	uintxx xsampling;
+	uint32 ysampling;
+	uint32 xsampling;
 	uint32 issubsampled;
 
 	/* scan size in number of MCU and the total number of units */
@@ -188,11 +188,11 @@ struct TJPGRPrvt {
 
 	/* component in the scan (if it's a single scan) and number of components
 	 * in the scan */
-	uintxx nscancomponents;
-	uintxx scancomponent;
+	uint32 nscancomponents;
+	uint32 scancomponent;
 
 	/* component order */
-	uintxx corder[3];
+	uint32 corder[3];
 
 	/* color transform flags */
 	uint32 isrgb;
@@ -203,9 +203,9 @@ struct TJPGRPrvt {
 
 	/* to ensure segment order */
 	struct TJPGRSegmentMap {
-		uintxx APP0s: 1;
-		uintxx SOFXs: 1;
-		uintxx  SOSs: 1;
+		uint32 APP0s: 1;
+		uint32 SOFXs: 1;
+		uint32  SOSs: 1;
 	}
 	segmentmap;
 
@@ -653,16 +653,16 @@ readmarker(struct TJPGRPrvt* jpgr)
 }
 
 
-static uintxx parseAPP0(struct TJPGRPrvt* jpgr);
-static uintxx parseAPP2(struct TJPGRPrvt* jpgr);
-static uintxx parseSOF0(struct TJPGRPrvt* jpgr, uintxx progressive);
+static bool parseAPP0(struct TJPGRPrvt* jpgr);
+static bool parseAPP2(struct TJPGRPrvt* jpgr);
+static bool parseSOF0(struct TJPGRPrvt* jpgr, bool progressive);
 
-static uintxx parseSOS(struct TJPGRPrvt* jpgr);
-static uintxx parseDQT(struct TJPGRPrvt* jpgr);
-static uintxx parseDHT(struct TJPGRPrvt* jpgr);
-static uintxx parseDRI(struct TJPGRPrvt* jpgr);
+static bool parseSOS(struct TJPGRPrvt* jpgr);
+static bool parseDQT(struct TJPGRPrvt* jpgr);
+static bool parseDHT(struct TJPGRPrvt* jpgr);
+static bool parseDRI(struct TJPGRPrvt* jpgr);
 
-static uintxx
+static bool
 parsesegments(struct TJPGRPrvt* jpgr)
 {
 	uint16 m;
@@ -771,7 +771,7 @@ parsesegments(struct TJPGRPrvt* jpgr)
 #define JFIFID 0x4a464946
 #define JFXXID 0x4a465858
 
-static uintxx
+static bool
 parseAPP0(struct TJPGRPrvt* jpgr)
 {
 	uint16 r;
@@ -1044,7 +1044,7 @@ parseICCPheader(struct TJPGRPrvt* jpgr, uint8* s)
 	return size;
 }
 
-static uintxx
+static bool
 parseAPP2(struct TJPGRPrvt* jpgr)
 {
 	uintxx r;
@@ -1117,7 +1117,7 @@ L_SKIP:
 	return 1;
 }
 
-static uintxx
+static bool
 parseDRI(struct TJPGRPrvt* jpgr)
 {
 	uint16 r;
@@ -1153,7 +1153,7 @@ static const uint8 zzorder[] = {
 	63, 63, 63, 63, 63, 63, 63, 63,
 };
 
-static uintxx
+static bool
 parseDQT(struct TJPGRPrvt* jpgr)
 {
 	uint16 r;
@@ -1472,15 +1472,15 @@ checksize(struct TJPGRPrvt* jpgr)
 	return 1;
 }
 
-static uintxx
-parseSOF0(struct TJPGRPrvt* jpgr, uintxx progressive)
+static bool
+parseSOF0(struct TJPGRPrvt* jpgr, bool progressive)
 {
 	uint16 r;
 	uint8* s;
 	uintxx i;
 	uintxx total;
-	uintxx ysampling;
-	uintxx xsampling;
+	uint32 ysampling;
+	uint32 xsampling;
 
 	if (jpgr->segmentmap.SOFXs == 1) {
 		/* multi frame image */
@@ -1610,14 +1610,14 @@ parseSOF0(struct TJPGRPrvt* jpgr, uintxx progressive)
 	jpgr->ysampling = ysampling;
 	jpgr->xsampling = xsampling;
 
-	jpgr->public.isprogressive = progressive;
+	jpgr->public.isprogressive = (uint32) progressive;
 	return 1;
 }
 
 
 static uintxx buildtable(struct TJPGHmTable*, uintxx, uint8*, uint8*);
 
-static uintxx
+static bool
 parseDHT(struct TJPGRPrvt* jpgr)
 {
 	uintxx r;
@@ -1789,7 +1789,7 @@ findcomponent(struct TJPGRPrvt* jpgr, uintxx id)
 	return (uintxx) -1;
 }
 
-static uintxx
+static bool
 parseSOS(struct TJPGRPrvt* jpgr)
 {
 	uint16 r;
@@ -1826,7 +1826,7 @@ parseSOS(struct TJPGRPrvt* jpgr)
 	if (j == 3 && jpgr->ncomponents == 1) {
 		return 0;
 	}
-	jpgr->nscancomponents = j;
+	jpgr->nscancomponents = (uint32) j;
 
 	/* component tables, spectral selection and progressive aproximation */
 	total = (j * 2) + 3;
@@ -1842,7 +1842,7 @@ parseSOS(struct TJPGRPrvt* jpgr)
 		}
 
 		c = jpgr->components + index;
-		jpgr->corder[i] = index;
+		jpgr->corder[i] = (uint32) index;
 
 		ac = (s[1] >> 0) & 0x0f;
 		dc = (s[1] >> 4) & 0x0f;
@@ -1854,7 +1854,7 @@ parseSOS(struct TJPGRPrvt* jpgr)
 		c->actable = jpgr->actables + ac;
 		s += 2;
 	}
-	jpgr->scancomponent = index;
+	jpgr->scancomponent = (uint32) index;
 
 	if (jpgr->public.isprogressive) {
 		if (readpassinfo(jpgr, s) == 0) {
@@ -1940,7 +1940,7 @@ jpgr_initdecoder(const TJPGReader* state, TImageInfo* info)
 
 	m = read16(jpgr);
 	if (m == SOI) {
-		uintxx mode;
+		uint32 mode;
 
 		if (parsesegments(jpgr) == 0) {
 			goto L_ERROR;
@@ -4257,7 +4257,7 @@ jpgr_decodepass(const TJPGReader* state, bool update)
 		jpgr->npass++;
 		if (jpgr->npass > JPGR_MAXPASSES) {
 			SETERROR(JPGR_EPASSLIMIT);
-			return 0;
+			goto L_ERROR;
 		}
 		return jpgr->npass;
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023, jpn
+ * Copyright (C) 2025, jpn
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ struct TPNGRPrvt {
 	/* public fields */
 	struct TPNGReader public;
 
-	uintxx hasalpha;
+	uint32 hasalpha;
 
 	/* to check chunk presence and order */
 	struct TPNGRChunkMap {
@@ -48,7 +48,7 @@ struct TPNGRPrvt {
 		uintxx SRGB: 1;
 	} chunkmap;
 
-	uintxx docrc;
+	uint32 docrc;
 	uint32 crc32;
 
 	/* row buffers */
@@ -58,7 +58,7 @@ struct TPNGRPrvt {
 
 	/* raw scanline before decoding, including the filter byte */
 	uintxx rawrowsize;
-	uintxx rawpelsize;
+	uint32 rawpelsize;
 
 	/* required memory for each row (including padding bytes) */
 	uintxx rowmemory;
@@ -85,10 +85,10 @@ struct TPNGRPrvt {
 	uintxx iccpsize;
 
 	/* progressive pass */
-	uintxx interpolate;
-	uintxx pass;
-	uintxx passmemsize[7];
-	uintxx passrowsize[7];
+	uint32 interpolate;
+	uint32 pass;
+	uint32 passmemsize[7];
+	uint32 passrowsize[7];
 
 	/* input callback */
 	TIMGInputFn inputfn;
@@ -299,7 +299,7 @@ readinput(struct TPNGRPrvt* pngr, uint8* buffer, uintxx size)
 
 	r = pngr->inputfn(buffer, size, pngr->payload);
 	if (CTB_EXPECT0((uintxx) r ^ size)) {
-		static const uintxx error[] = {
+		static const uint32 error[] = {
 			PNGR_EBADDATA,
 			PNGR_EIOERROR
 		};
@@ -766,16 +766,16 @@ setuppasses(struct TPNGRPrvt* pngr)
 			continue;
 		}
 
-		pngr->passrowsize[i] = sizex;
+		pngr->passrowsize[i] = (uint32) sizex;
 		if (pngr->public.depth < 8) {
 			uint64 v;
 
 			v = ((uint64) pngr->public.depth * sizex) + 7;
-			pngr->passmemsize[i] = (uintxx) (v >> 3) + 1;
+			pngr->passmemsize[i] = (uint32) (v >> 3) + 1;
 			continue;
 		}
 
-		pngr->passmemsize[i] = sizex * pngr->rawpelsize;
+		pngr->passmemsize[i] = (uint32) sizex * pngr->rawpelsize;
 		pngr->passmemsize[i]++;
 	}
 	pngr->interpolate = 1;
@@ -823,8 +823,8 @@ setvalues(struct TPNGRPrvt* pngr, struct TImageInfo* info)
 	static const uintxx cmap[] = {
 		1, 0, 3, 1, 2, 0, 4
 	};
+	uint32 mode;
 	uintxx pelsize;
-	uintxx mode;
 	uintxx r;
 
 	switch (pngr->public.colortype) {
@@ -870,7 +870,7 @@ setvalues(struct TPNGRPrvt* pngr, struct TImageInfo* info)
 	r = r * ((pngr->public.depth + 7) >> 3);
 
 	pngr->rawrowsize = pngr->rowmemory = (pngr->public.sizex * r) + 1;
-	pngr->rawpelsize = r;
+	pngr->rawpelsize = (uint32) r;
 	if (pngr->public.depth < 8) {
 		uint64 v;
 
@@ -1057,7 +1057,7 @@ parsePLTE(struct TPNGRPrvt* pngr, struct TChunkHead head)
 	initcrc32(pngr, CRC32_PLTE);
 
 	s = pngr->public.palette;
-	pngr->public.palettesize = psize;
+	pngr->public.palettesize = (uint32) psize;
 	if (readinput(pngr, s, head.length) == 0) {
 		return 0;
 	}

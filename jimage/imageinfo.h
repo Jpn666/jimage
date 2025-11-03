@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023, jpn
+ * Copyright (C) 2025, jpn
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,8 +43,8 @@ struct TImageInfo {
 	uintxx sizex;
 	uintxx sizey;
 
-	uintxx colortype;  /* color mode */
-	uintxx depth;      /* bits per channel */
+	uint32 colortype;  /* color mode */
+	uint32 depth;      /* bits per channel */
 
 	/* size in bytes */
 	uintxx size;

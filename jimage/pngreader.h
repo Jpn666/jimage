@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023, jpn
+ * Copyright (C) 2025, jpn
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -80,17 +80,17 @@ typedef enum {
 /* Public struct */
 struct TPNGReader {
 	/* state */
-	uintxx state;
-	uintxx flags;
-	uintxx error;
-	uintxx warnings;       /* non fatal errors */
+	uint32 state;
+	uint32 error;
+	uint32 flags;
+	uint32 warnings;       /* non fatal errors */
 
 	/* image size */
 	uint32 sizex;
 	uint32 sizey;
 
-	uintxx colortype;
-	uintxx depth;
+	uint32 colortype;
+	uint32 depth;
 
 	/* internal memory required for the decoder */
 	uintxx requiredmemory;
@@ -101,10 +101,10 @@ struct TPNGReader {
 	uint8 interlace;
 
 	/* PNG image chunk map properties */
-	uintxx properties;
+	uint32 properties;
 
 	/* RGBA color palette */
-	uintxx palettesize;
+	uint32 palettesize;
 	uint8  palette[1024];
 
 	/* transparency color key */
@@ -126,7 +126,7 @@ struct TPNGReader {
 	float32 chromay[3];    /* RGB */
 
 	/* sRGB */
-	uintxx srgbintent;
+	uint32 srgbintent;
 
 	/* physical dimensions */
 	uint32 physx;
