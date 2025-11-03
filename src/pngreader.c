@@ -109,16 +109,6 @@ struct TPNGRPrvt {
 	const struct TAllocator* allctr;
 };
 
-
-CTB_INLINE void
-dispose_(struct TPNGRPrvt* p, void* memory, uintxx amount)
-{
-	const struct TAllocator* a;
-
-	a = p->allctr;
-	a->dispose(memory, amount, a->user);
-}
-
 const TPNGReader*
 pngr_create(ePNGRFlags flags, const TAllocator* allctr)
 {
