@@ -322,24 +322,6 @@ struct TJPGRPrvt {
 };
 
 
-CTB_INLINE void*
-request_(struct TJPGRPrvt* p, uintxx amount)
-{
-	const struct TAllocator* a;
-
-	a = p->allctr;
-	return a->request(amount, a->user);
-}
-
-CTB_INLINE void
-dispose_(struct TJPGRPrvt* p, void* memory, uintxx amount)
-{
-	const struct TAllocator* a;
-
-	a = p->allctr;
-	a->dispose(memory, amount, a->user);
-}
-
 const TJPGReader*
 jpgr_create(eJPGRFlags flags, const TAllocator* allctr)
 {
@@ -408,7 +390,10 @@ jpgr_reset(const TJPGReader* state)
 	jpgr->issubsampled  = 0;
 
 	if (jpgr->mainmemory) {
-		dispose_(jpgr, jpgr->mainmemory, jpgr->mainmsize);
+		const struct TAllocator* allctr;
+
+		allctr = jpgr->allctr;
+		allctr->dispose(jpgr->mainmemory, jpgr->mainmsize, allctr->user);
 		jpgr->mainmemory = NULL;
 	}
 	jpgr->mainmsize = 0;
@@ -478,17 +463,19 @@ jpgr_reset(const TJPGReader* state)
 void
 jpgr_destroy(const TJPGReader* state)
 {
+	const struct TAllocator* allctr;
 	struct TJPGRPrvt* jpgr;
 
+	jpgr = CTB_CONSTCAST(state);
 	if (state == NULL) {
 		return;
 	}
 
-	jpgr = CTB_CONSTCAST(state);
+	allctr = jpgr->allctr;
 	if (jpgr->mainmemory) {
-		dispose_(jpgr, jpgr->mainmemory, jpgr->mainmsize);
+		allctr->dispose(jpgr->mainmemory, jpgr->mainmsize, allctr->user);
 	}
-	dispose_(jpgr, jpgr, sizeof(struct TJPGRPrvt));
+	allctr->dispose(jpgr, sizeof(struct TJPGRPrvt), allctr->user);
 }
 
 
@@ -2015,6 +2002,7 @@ jpgr_setbuffers(const TJPGReader* state, uint8* pixels)
 	uintxx i;
 	uintxx j;
 	uint8* memory;
+	const struct TAllocator* allctr;
 	struct TJPGRPrvt* jpgr;
 	CTB_ASSERT(state);
 
@@ -2027,8 +2015,8 @@ jpgr_setbuffers(const TJPGReader* state, uint8* pixels)
 		return;
 	}
 
-	CTB_ASSERT(jpgr->mainmemory == NULL);
-	memory = request_(jpgr, jpgr->public.requiredmemory);
+	allctr = jpgr->allctr;
+	memory = allctr->request(jpgr->public.requiredmemory, allctr->user);
 	if (memory == NULL) {
 		SETSTATE(0xDEADBEEF);
 		SETERROR(JPGR_EOOM);

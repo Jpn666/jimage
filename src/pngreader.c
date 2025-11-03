@@ -110,15 +110,6 @@ struct TPNGRPrvt {
 };
 
 
-CTB_INLINE void*
-request_(struct TPNGRPrvt* p, uintxx amount)
-{
-	const struct TAllocator* a;
-
-	a = p->allctr;
-	return a->request(amount, a->user);
-}
-
 CTB_INLINE void
 dispose_(struct TPNGRPrvt* p, void* memory, uintxx amount)
 {
@@ -145,7 +136,7 @@ pngr_create(ePNGRFlags flags, const TAllocator* allctr)
 
 	pngr->zstrm = zstrm_create(ZSTRM_INFLATE | ZSTRM_ZLIB, 0, allctr);
 	if (pngr->zstrm == NULL) {
-		dispose_(pngr, pngr, sizeof(struct TPNGRPrvt));
+		allctr->dispose(pngr, sizeof(struct TPNGRPrvt), allctr->user);
 		return NULL;
 	}
 
@@ -157,7 +148,7 @@ pngr_create(ePNGRFlags flags, const TAllocator* allctr)
 }
 
 
-#define SETERROR(ERROR) (pngr->public.error = (ERROR), printf("set error on line %u\n", __LINE__))
+#define SETERROR(ERROR) (pngr->public.error = (ERROR))
 #define SETSTATE(STATE) (pngr->public.state = (STATE))
 
 void
@@ -231,7 +222,10 @@ pngr_reset(const TPNGReader* state)
 	pngr->idxs   = NULL;
 
 	if (pngr->mainmemory) {
-		dispose_(pngr, pngr->mainmemory, pngr->mainmsize);
+		const struct TAllocator* allctr;
+
+		allctr = pngr->allctr;
+		allctr->dispose(pngr->mainmemory, pngr->mainmsize, allctr->user);
 		pngr->mainmemory = NULL;
 	}
 	pngr->mainmsize = 0;
@@ -253,6 +247,7 @@ pngr_reset(const TPNGReader* state)
 void
 pngr_destroy(const TPNGReader* state)
 {
+	const struct TAllocator* allctr;
 	struct TPNGRPrvt* pngr;
 
 	pngr = CTB_CONSTCAST(state);
@@ -260,12 +255,13 @@ pngr_destroy(const TPNGReader* state)
 		return;
 	}
 
+	allctr = pngr->allctr;
 	if (pngr->mainmemory) {
-		dispose_(pngr, pngr->mainmemory, pngr->mainmsize);
+		allctr->dispose(pngr->mainmemory, pngr->mainmsize, allctr->user);
 	}
 
 	zstrm_destroy(pngr->zstrm);
-	dispose_(pngr, pngr, sizeof(struct TPNGRPrvt));
+	allctr->dispose(pngr, sizeof(struct TPNGRPrvt), allctr->user);
 }
 
 void
@@ -983,6 +979,7 @@ void
 pngr_setbuffers(const TPNGReader* state, uint8* pixels, uint8* idxs)
 {
 	uintxx i;
+	const struct TAllocator* allctr;
 	struct TPNGRPrvt* pngr;
 	CTB_ASSERT(state);
 
@@ -995,8 +992,10 @@ pngr_setbuffers(const TPNGReader* state, uint8* pixels, uint8* idxs)
 		return;
 	}
 
-	CTB_ASSERT(pngr->mainmemory == NULL);
-	pngr->mainmemory = request_(pngr, pngr->public.requiredmemory);
+	allctr = pngr->allctr;
+
+	i = pngr->public.requiredmemory;
+	pngr->mainmemory = allctr->request(i, allctr->user);
 	if (pngr->mainmemory == NULL) {
 		SETSTATE(0xDEADBEEF);
 		SETERROR(PNGR_EOOM);
