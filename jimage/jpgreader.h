@@ -198,7 +198,9 @@ typedef void (*TJPGRICCPFn)(const TJPGReader*, uintxx size, void* user);
  * Sets the ICCP callback function.
  *
  * The callback function will be called when an ICCP is found on the image.
- * This function should be called before jpgr_initdecoder(). */
+ * This function should be called before jpgr_initdecoder(). Using any other
+ * function other than jpgr_readICCP() inside the callback function will
+ * invalidate the state or crash the program. */
 JIMAGE_API
 void jpgr_setICCPfn(const TJPGReader*, TJPGRICCPFn fn, void* user);
 
