@@ -914,7 +914,7 @@ setvalues(struct TPNGRPrvt* pngr, struct TImageInfo* info)
 	return 1;
 }
 
-uintxx
+uint32
 pngr_initdecoder(const TPNGReader* state, TImageInfo* info)
 {
 	struct TPNGRPrvt* pngr;
@@ -2127,7 +2127,7 @@ setrow(struct TPNGRPrvt* pngr, uint8* pixels, uint8* row)
 	ctb_memcpy(pixels, row, pngr->rowsize);
 }
 
-uintxx
+uint32
 pngr_decodeimg(const TPNGReader* state)
 {
 	uintxx i;
@@ -2367,7 +2367,7 @@ fill(struct TPNGRPrvt* pngr, uint8* offset, uint8* s, uintxx x2, uintxx y2)
 	}
 }
 
-uintxx
+uint32
 pngr_decodepass(const TPNGReader* state)
 {
 	uintxx x;
@@ -2503,7 +2503,7 @@ L_DONE:
 		}
 		return 0;
 	}
-	return r;
+	return (uint32) r;
 }
 
 #undef STEP_X

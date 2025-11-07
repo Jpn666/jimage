@@ -161,7 +161,7 @@ void pngr_setinputfn(const TPNGReader*, TIMGInputFn fn, void* user);
  * Init the decoder and determines the required internal memory nedeed
  * to decode the image. */
 JIMAGE_API
-uintxx pngr_initdecoder(const TPNGReader*, TImageInfo* info);
+uint32 pngr_initdecoder(const TPNGReader*, TImageInfo* info);
 
 /*
  * Sets the target memory buffer for the decoded image and the index buffer
@@ -174,13 +174,13 @@ void pngr_setbuffers(const TPNGReader*, uint8* pixels, uint8* idxs);
  * Decodes the next pass of a progressive image, returns the next pass or zero
  * is there are not more passes or in case of error. */
 JIMAGE_API
-uintxx pngr_decodepass(const TPNGReader*);
+uint32 pngr_decodepass(const TPNGReader*);
 
 /*
  * Decodes the image to the image buffer (if set) or to the index buffer if
  * the index buffer is set and the image is indexed. */
 JIMAGE_API
-uintxx pngr_decodeimg(const TPNGReader*);
+uint32 pngr_decodeimg(const TPNGReader*);
 
 /*
  * */

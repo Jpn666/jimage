@@ -147,7 +147,7 @@ void jpgr_setinputfn(const TJPGReader*, TIMGInputFn fn, void* user);
  * 
  * The image info structure will be filled with the image properties. */
 JIMAGE_API
-bool jpgr_initdecoder(const TJPGReader*, TImageInfo* info);
+uint32 jpgr_initdecoder(const TJPGReader*, TImageInfo* info);
 
 /*
  * Sets the memory buffer for the decoded image.
@@ -161,13 +161,13 @@ void jpgr_setbuffers(const TJPGReader*, uint8* pixels);
 /*
  * Decodes the image to the image buffer (if set). */
 JIMAGE_API
-uintxx jpgr_decodeimg(const TJPGReader*);
+uint32 jpgr_decodeimg(const TJPGReader*);
 
 /*
  * Decodes the next pass of a progressive image, returns the next pass or zero
  * is there are not more passes or in case of error. */
 JIMAGE_API
-uintxx jpgr_decodepass(const TJPGReader*, bool update);
+uint32 jpgr_decodepass(const TJPGReader*, uint32 update);
 
 /*
  * Updates the image buffer with the latest decoded data. */

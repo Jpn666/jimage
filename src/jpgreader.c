@@ -1921,7 +1921,7 @@ parseSOS(struct TJPGRPrvt* jpgr)
 	return 1;
 }
 
-bool
+uint32
 jpgr_initdecoder(const TJPGReader* state, TImageInfo* info)
 {
 	uint32 m;
@@ -4037,7 +4037,7 @@ updateimg(struct TJPGRPrvt* jpgr)
 	}
 }
 
-uintxx
+uint32
 jpgr_decodeimg(const TJPGReader* state)
 {
 	uintxx r;
@@ -4177,8 +4177,8 @@ jpgr_updateimg(const TJPGReader* state)
 	updateimg(jpgr);
 }
 
-uintxx
-jpgr_decodepass(const TJPGReader* state, bool update)
+uint32
+jpgr_decodepass(const TJPGReader* state, uint32 update)
 {
 	uintxx r;
 	uintxx i;
