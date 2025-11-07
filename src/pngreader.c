@@ -113,6 +113,7 @@ const TPNGReader*
 pngr_create(ePNGRFlags flags, const TAllocator* allctr)
 {
 	struct TPNGRPrvt* pngr;
+	uint32 f;
 
 	if (allctr == NULL) {
 		allctr = ctb_getdefaultallocator();
@@ -124,7 +125,8 @@ pngr_create(ePNGRFlags flags, const TAllocator* allctr)
 	}
 	pngr->allctr = allctr;
 
-	pngr->zstrm = zstrm_create(ZSTRM_INFLATE | ZSTRM_ZLIB, 0, allctr);
+	f = (uint32) ZSTRM_INFLATE | (uint32) ZSTRM_ZLIB;
+	pngr->zstrm = zstrm_create(f, 0, allctr);
 	if (pngr->zstrm == NULL) {
 		allctr->dispose(pngr, sizeof(struct TPNGRPrvt), allctr->user);
 		return NULL;
@@ -338,7 +340,7 @@ getchunkhead(struct TPNGRPrvt* pngr)
 		return (struct TChunkHead) {0, {0, 0, 0, 0}};
 	}
 
-	head.length = TOI32(s[0], s[1], s[2], s[3]);
+	head.length = (uint32) TOI32(s[0], s[1], s[2], s[3]);
 	if (head.length > 0x7fffffff) {
 		SETERROR(PNGR_EBADDATA);
 		return (struct TChunkHead) {0, {0, 0, 0, 0}};
@@ -389,7 +391,7 @@ checkcrc32(struct TPNGRPrvt* pngr)
 		if (check) {
 			uint32 crc32;
 
-			crc32 = TOI32(s[0], s[1], s[2], s[3]);
+			crc32 = (uint32) TOI32(s[0], s[1], s[2], s[3]);
 			if (crc32 != (pngr->crc32 ^ 0xffffffff)) {
 				SETERROR(PNGR_EBADCRC);
 			}
@@ -465,8 +467,8 @@ parseIHDR(struct TPNGRPrvt* pngr, struct TChunkHead head)
 		return 0;
 	}
 
-	pngr->public.sizex = TOI32(s[0], s[1], s[2], s[3]);
-	pngr->public.sizey = TOI32(s[4], s[5], s[6], s[7]);
+	pngr->public.sizex = (uint32) TOI32(s[0], s[1], s[2], s[3]);
+	pngr->public.sizey = (uint32) TOI32(s[4], s[5], s[6], s[7]);
 	if (pngr->public.sizey == 0 || pngr->public.sizey > 0x7fffffff) {
 		goto L_ERROR;
 	}
@@ -545,7 +547,12 @@ parsechunks(struct TPNGRPrvt* pngr)
 			return 0;
 		}
 
-		fcc = TOI32(head.fcc[0], head.fcc[1], head.fcc[2], head.fcc[3]);
+		fcc = (uint32) TOI32(
+			head.fcc[0],
+			head.fcc[1],
+			head.fcc[2],
+			head.fcc[3]
+		);
 		if (pngr->public.state == 3) {
 			if (fcc == TOI32('I', 'D', 'A', 'T')) {
 				initcrc32(pngr, CRC32_IDAT);
@@ -1143,7 +1150,7 @@ parseTRNS(struct TPNGRPrvt* pngr, struct TChunkHead head)
 				pngr->public.alpha[0] = (uint16) s[1];
 			}
 			else {
-				pngr->public.alpha[0] = TOI16(s[0], s[1]);
+				pngr->public.alpha[0] = (uint16) TOI16(s[0], s[1]);
 			}
 			/* unused values are zero */
 		}
@@ -1158,9 +1165,9 @@ parseTRNS(struct TPNGRPrvt* pngr, struct TChunkHead head)
 				pngr->public.alpha[2] = (uint16) s[5];
 			}
 			else {
-				pngr->public.alpha[0] = TOI16(s[0], s[1]);
-				pngr->public.alpha[1] = TOI16(s[2], s[3]);
-				pngr->public.alpha[2] = TOI16(s[4], s[5]);
+				pngr->public.alpha[0] = (uint16) TOI16(s[0], s[1]);
+				pngr->public.alpha[1] = (uint16) TOI16(s[2], s[3]);
+				pngr->public.alpha[2] = (uint16) TOI16(s[4], s[5]);
 			}
 		}
 
@@ -1212,9 +1219,9 @@ parseCHRM(struct TPNGRPrvt* pngr, struct TChunkHead head)
 
 	/* each value is encoded as a four-byte PNG unsigned integer,
 	 * representing the x or y value times 100000 */
-	a = TOI32(s[0], s[1], s[2], s[3]);
+	a = (uint32) TOI32(s[0], s[1], s[2], s[3]);
 	s += 4;
-	b = TOI32(s[0], s[1], s[2], s[3]);
+	b = (uint32) TOI32(s[0], s[1], s[2], s[3]);
 	s += 4;
 	pngr->public.wpointx = (flt32) a * 0.00001f;
 	pngr->public.wpointy = (flt32) b * 0.00001f;
@@ -1224,9 +1231,9 @@ parseCHRM(struct TPNGRPrvt* pngr, struct TChunkHead head)
 	}
 
 	for (i = 0; i < 3; i++) {
-		a = TOI32(s[0], s[1], s[2], s[3]);
+		a = (uint32) TOI32(s[0], s[1], s[2], s[3]);
 		s += 4;
-		b = TOI32(s[0], s[1], s[2], s[3]);
+		b = (uint32) TOI32(s[0], s[1], s[2], s[3]);
 		s += 4;
 
 		pngr->public.chromax[i] = (flt32) a * 0.00001f;
@@ -1279,7 +1286,7 @@ parseGAMA(struct TPNGRPrvt* pngr, struct TChunkHead head)
 
 	/* the value is encoded as a four-byte PNG unsigned integer,
 	 * representing gamma times 100000 */
-	n = TOI32(s[0], s[1], s[2], s[3]);
+	n = (uint32) TOI32(s[0], s[1], s[2], s[3]);
 	pngr->public.gamma = (flt32) n * 0.00001f;
 
 	if (n == 0) {
@@ -1460,12 +1467,12 @@ parseBKGD(struct TPNGRPrvt* pngr, struct TChunkHead head)
 		pngr->public.background[2] = pngr->public.palette[entry + 2];
 	}
 	else {
-		pngr->public.background[0] = TOI16(s[0], s[1]);
+		pngr->public.background[0] = (uint16) TOI16(s[0], s[1]);
 		s += 2;
 		if (size > 2) {
-			pngr->public.background[1] = TOI16(s[0], s[1]);
+			pngr->public.background[1] = (uint16) TOI16(s[0], s[1]);
 			s += 2;
-			pngr->public.background[2] = TOI16(s[0], s[1]);
+			pngr->public.background[2] = (uint16) TOI16(s[0], s[1]);
 			s += 2;
 		}
 	}
@@ -1499,9 +1506,9 @@ parsePHYS(struct TPNGRPrvt* pngr, struct TChunkHead head)
 	if (head.length != 9 || readinput(pngr, s, 9) == 0) {
 		return 0;
 	}
-	pngr->public.physx = TOI32(s[0], s[1], s[2], s[3]);
+	pngr->public.physx = (uint16) TOI32(s[0], s[1], s[2], s[3]);
 	s += 4;
-	pngr->public.physy = TOI32(s[0], s[1], s[2], s[3]);
+	pngr->public.physy = (uint16) TOI32(s[0], s[1], s[2], s[3]);
 	s += 4;
 
 	checkcrc32(pngr);
@@ -1603,7 +1610,7 @@ parseICCPheader(uint8* s)
 
 	/* offset zero is the profile size (uint32), signature is at
 	 * offset 36 (0x61637370) "acsp" */
-	size = TOI32(s[0], s[1], s[2], s[3]);
+	size = (uintxx) TOI32(s[0], s[1], s[2], s[3]);
 
 	s += 36;
 	if (s[0] != 'a' &&
@@ -2316,11 +2323,14 @@ getsample(struct TPNGRPrvt* pngr, uint8* source, uint8* pixel)
 
 		p = (void*) pixel;
 		switch (pngr->pelsize) {
-			case 8: p[3] = (source[7] << 0x08) | source[6];  /* fallthrough */
-			case 6: p[2] = (source[5] << 0x08) | source[4];  /* fallthrough */
-			case 4: p[1] = (source[3] << 0x08) | source[2];  /* fallthrough */
-			case 2: p[0] = (source[1] << 0x08) | source[0];
-		}
+			case 8: p[3] = (uint16) ((source[7] << 0x08) | source[6]);
+			/* fallthrough */
+			case 6: p[2] = (uint16) ((source[5] << 0x08) | source[4]);
+			/* fallthrough */
+			case 4: p[1] = (uint16) ((source[3] << 0x08) | source[2]);
+			/* fallthrough */
+			case 2: p[0] = (uint16) ((source[1] << 0x08) | source[0]);
+			}
 		return pixel;
 	}
 #endif

@@ -618,7 +618,7 @@ readinput(struct TJPGRPrvt* jpgr, uintxx amount)
 #define TOI32(A, B, C, D) ((A << 0x18) | (B << 0x10) | (C << 0x08) | (D))
 #define TOI16(A, B)       ((A << 0x08) | (B))
 
-CTB_INLINE uint16
+CTB_INLINE uint32
 read16(struct TJPGRPrvt* jpgr)
 {
 	uint8* s;
@@ -627,10 +627,10 @@ read16(struct TJPGRPrvt* jpgr)
 	if (CTB_EXPECT0(s == NULL)) {
 		return 0;
 	}
-	return TOI16(s[0], s[1]);
+	return (uint32) TOI16(s[0], s[1]);
 }
 
-CTB_INLINE uint16
+CTB_INLINE uint32
 readmarker(struct TJPGRPrvt* jpgr)
 {
 	uint8* s;
@@ -647,7 +647,7 @@ readmarker(struct TJPGRPrvt* jpgr)
 			}
 		} while (s[0] == 0xff);
 
-		return TOI16(0xff, s[0]);
+		return (uint32) TOI16(0xff, s[0]);
 	}
 	return s[0];
 }
@@ -665,7 +665,7 @@ static bool parseDRI(struct TJPGRPrvt* jpgr);
 static bool
 parsesegments(struct TJPGRPrvt* jpgr)
 {
-	uint16 m;
+	uint32 m;
 
 	for (;;) {
 		m = readmarker(jpgr);
@@ -741,7 +741,7 @@ parsesegments(struct TJPGRPrvt* jpgr)
 		}
 
 		if (((m >= 0xffd0 && m <= 0xffd9) || m == 0xff01) == 0) {
-			uint16 r;
+			uint32 r;
 
 			r = read16(jpgr);
 			if (r < 2) {
@@ -774,7 +774,7 @@ parsesegments(struct TJPGRPrvt* jpgr)
 static bool
 parseAPP0(struct TJPGRPrvt* jpgr)
 {
-	uint16 r;
+	uint32 r;
 	uint32 signature;
 	uint8* s;
 
@@ -798,7 +798,7 @@ parseAPP0(struct TJPGRPrvt* jpgr)
 		return 0;
 	}
 	r -= 5;
-	signature = TOI32(s[0], s[1], s[2], s[3]);
+	signature = (uint32) TOI32(s[0], s[1], s[2], s[3]);
 	if (signature != JFIFID && signature != JFXXID) {
 		SETWARNING(JPGR_BADSIGNATURE);
 		goto L_SKIP;
@@ -818,8 +818,8 @@ parseAPP0(struct TJPGRPrvt* jpgr)
 	/* density units */
 	s += 2;
 	jpgr->public.unit = s[0];
-	jpgr->public.ydensity = TOI16(s[1], s[2]);
-	jpgr->public.xdensity = TOI16(s[3], s[4]);
+	jpgr->public.ydensity = (uint32) TOI16(s[1], s[2]);
+	jpgr->public.xdensity = (uint32) TOI16(s[3], s[4]);
 
 L_SKIP:
 	if (r) {
@@ -862,7 +862,7 @@ parseICCPchunk(uint8* s)
 	return (struct TICCPChunk) {s1, s2};
 }
 
-static uintxx
+static bool
 readnextICCPsequence(struct TJPGRPrvt* jpgr, struct TICCPChunk* chunk)
 {
 	uintxx m;
@@ -895,7 +895,7 @@ readnextICCPsequence(struct TJPGRPrvt* jpgr, struct TICCPChunk* chunk)
 		}
 		s = jpgr->bgn + 2;
 
-		r = TOI16(s[0], s[1]);
+		r = (uintxx) TOI16(s[0], s[1]);
 		if (r < 16) {
 			return 0;
 		}
@@ -1023,7 +1023,7 @@ parseICCPheader(struct TJPGRPrvt* jpgr, uint8* s)
 
 	/* offset zero is the profile size (uint32), signature is at
 	 * offset 36 (0x61637370) "acsp" */
-	size = TOI32(s[0], s[1], s[2], s[3]);
+	size = (uintxx) TOI32(s[0], s[1], s[2], s[3]);
 
 	s += 36;
 	if (s[0] != 'a' &&
@@ -1120,7 +1120,7 @@ L_SKIP:
 static bool
 parseDRI(struct TJPGRPrvt* jpgr)
 {
-	uint16 r;
+	uint32 r;
 	uint8* s;
 
 	r = read16(jpgr);
@@ -1131,7 +1131,7 @@ parseDRI(struct TJPGRPrvt* jpgr)
 	if (r != 4 || (s = readinput(jpgr, 2)) == NULL) {
 		return 0;
 	}
-	jpgr->rinterval = TOI16(s[0], s[1]);
+	jpgr->rinterval = (uint32) TOI16(s[0], s[1]);
 	return 1;
 }
 
@@ -1156,7 +1156,7 @@ static const uint8 zzorder[] = {
 static bool
 parseDQT(struct TJPGRPrvt* jpgr)
 {
-	uint16 r;
+	uint32 r;
 	uint8* s;
 	uint8 total;
 	uintxx tablemap;
@@ -1475,7 +1475,7 @@ checksize(struct TJPGRPrvt* jpgr)
 static bool
 parseSOF0(struct TJPGRPrvt* jpgr, bool progressive)
 {
-	uint16 r;
+	uint32 r;
 	uint8* s;
 	uintxx i;
 	uintxx total;
@@ -1508,8 +1508,10 @@ parseSOF0(struct TJPGRPrvt* jpgr, bool progressive)
 	s++;
 
 	/* image size */
-	jpgr->public.sizey = TOI16(s[0], s[1]); s += 2;
-	jpgr->public.sizex = TOI16(s[0], s[1]); s += 2;
+	jpgr->public.sizey = (uint32) TOI16(s[0], s[1]);
+	s += 2;
+	jpgr->public.sizex = (uint32) TOI16(s[0], s[1]);
+	s += 2;
 	if (jpgr->public.sizey == 0 || jpgr->public.sizex == 0) {
 		return 0;
 	}
@@ -1792,7 +1794,7 @@ findcomponent(struct TJPGRPrvt* jpgr, uintxx id)
 static bool
 parseSOS(struct TJPGRPrvt* jpgr)
 {
-	uint16 r;
+	uint32 r;
 	uint8* s;
 	uintxx i;
 	uintxx j;
@@ -1922,7 +1924,7 @@ parseSOS(struct TJPGRPrvt* jpgr)
 bool
 jpgr_initdecoder(const TJPGReader* state, TImageInfo* info)
 {
-	uint16 m;
+	uint32 m;
 	uintxx j;
 	struct TJPGRPrvt* jpgr;
 	CTB_ASSERT(state && info);
@@ -2154,7 +2156,7 @@ buildtable(struct TJPGHmTable* table, uintxx mode, uint8* lns, uint8* symbols)
 	intxx k;
 	uintxx count;
 	uintxx offset;
-	uint16 c;
+	uint32 c;
 	uint16 codes[16];
 
 	j = 1;
@@ -2167,8 +2169,8 @@ buildtable(struct TJPGHmTable* table, uintxx mode, uint8* lns, uint8* symbols)
 		}
 		m += lns[i];
 
-		codes[i] = c;
-		c = (uint16) (c + lns[i]) << 1;
+		codes[i] = (uint16) c;
+		c = (c + lns[i]) << 1;
 	}
 
 	/* check symbols range 0-15 for DC tables */
@@ -2261,7 +2263,7 @@ buildtable(struct TJPGHmTable* table, uintxx mode, uint8* lns, uint8* symbols)
 			}
 			else {
 				r = (uintxx) ROOTBITS - ((uintxx) j + 1);
-				c = codes[j] << r;
+				c = (uint32) codes[j] << r;
 			}
 
 			for (i = (1u << r) - 1; i >= 0; i--) {
@@ -2315,7 +2317,7 @@ fecthbits(struct TJPGRPrvt* jpgr)
 				goto L_SLOW;
 			}
 
-			jpgr->bb[index++] = (jpgr->bgn[0] << 8) | jpgr->bgn[1];
+			jpgr->bb[index++] = (uint16) ((jpgr->bgn[0] << 8) | jpgr->bgn[1]);
 		}
 
 		jpgr->bbcread += (intxx) BUFFERBYTES << 3;
@@ -2533,7 +2535,7 @@ decodeblock(struct TJPGRPrvt* jpgr, struct TJPGComponent* c, int16* block)
 		return 0;
 	}
 
-	length = GETLENGTH(s);
+	length = GETLENGTH((uint32) s);
 	DROPBITS(bb, bc, length);
 	r += length;
 
@@ -2575,7 +2577,7 @@ decodeblock(struct TJPGRPrvt* jpgr, struct TJPGComponent* c, int16* block)
 			SETERROR(JPGR_EBADCODE);
 			return 0;
 		}
-		length = GETLENGTH(s);
+		length = GETLENGTH((uint32) s);
 
 		DROPBITS(bb, bc, length);
 		r += length;
@@ -3312,7 +3314,7 @@ CTB_INLINE uintxx
 checkinterval(struct TJPGRPrvt* jpgr)
 {
 	uintxx i;
-	uint16 m;
+	uint32 m;
 
 	if (overread(jpgr) == 1) {
 		return 0;
@@ -3497,7 +3499,7 @@ decodefirstDC(struct TJPGRPrvt* jpgr, struct TJPGComponent* c, uintxx index)
 		SETERROR(JPGR_EBADCODE);
 		return 0;
 	}
-	dropbits(jpgr, GETLENGTH(s));
+	dropbits(jpgr, GETLENGTH((uint32) s));
 	s = GETSYMBOL(s);
 
 	ensurebits(jpgr, 16);
@@ -3702,8 +3704,8 @@ decodefirstAC(struct TJPGRPrvt* jpgr, struct TJPGComponent* c, uintxx index)
 			SETERROR(JPGR_EBADCODE);
 			return 0;
 		}
-		symbol = GETSYMBOL((uintxx) s);
-		dropbits(jpgr, GETLENGTH(s));
+		symbol = GETSYMBOL((uint32) s);
+		dropbits(jpgr, GETLENGTH((uint32) s));
 
 		a = (symbol >> 0) & 0x0f;
 		b = (symbol >> 4);
@@ -3732,7 +3734,7 @@ decodefirstAC(struct TJPGRPrvt* jpgr, struct TJPGComponent* c, uintxx index)
 
 			ensurebits(jpgr, a);
 			j = (intxx) getbits(jpgr, a);
-			block[i] = (int16) extend((intxx) a, j) << jpgr->al;
+			block[i] = (int16) (extend((intxx) a, j) << jpgr->al);
 			dropbits(jpgr, a);
 			i += 1;
 		}
@@ -3833,8 +3835,8 @@ decoderefineAC(struct TJPGRPrvt* jpgr, struct TJPGComponent* c, uintxx index)
 			SETERROR(JPGR_EBADCODE);
 			return 0;
 		}
-		symbol = GETSYMBOL((uintxx) s);
-		dropbits(jpgr, GETLENGTH(s));
+		symbol = GETSYMBOL((uint32) s);
+		dropbits(jpgr, GETLENGTH((uint32) s));
 
 		a = (intxx) (symbol >> 0) & 0x0f;
 		b = (intxx) (symbol >> 4);
